@@ -1,0 +1,179 @@
+---
+import Shell from '../layouts/Shell.astro';
+---
+
+<Shell
+  kicker="Overview"
+  title="Rain does not stop the cab"
+  lede="976,425 (hour × zone) records of New York yellow-taxi demand, joined to hourly weather for all of 2025. Every panel below is a live MongoDB aggregation, re-run against the lens in the top bar. These four findings are what the rest of the dashboard defends."
+>
+  <div class="grid">
+    <div class="panel panel--wide">
+      <div class="panel__body"><div id="kpis" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Figure 1</span>
+        <h2 class="panel__h">The year, with the weather under it</h2>
+      </div>
+      <div class="panel__body"><div id="year" class="chart chart--tall" data-state="loading"></div><div id="year-legend"></div></div>
+      <p class="panel__note">
+        All <b>8,759 recorded hours</b> of 2025, none sampled. The heavy line is each day's mean, so
+        the weekday rhythm drops out and the seasonal shape comes through — a February trough, an
+        October crest. The dotted line is hourly temperature. The bars hanging from the baseline are
+        daily rainfall, capped where snow fell, and they do not follow the demand curve at all.
+      </p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Findings</span>
+        <h2 class="panel__h">What moves, and what doesn't</h2>
+      </div>
+      <div class="panel__body"><ol id="findings" class="findings"></ol></div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 2</span>
+        <h2 class="panel__h">The daily clock</h2>
+      </div>
+      <div class="panel__body"><div id="hour" class="chart" data-state="loading"></div><div id="hour-legend"></div></div>
+      <p class="panel__note">Click a bar to pin that hour into the global lens.</p>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 3</span>
+        <h2 class="panel__h">The year by month</h2>
+      </div>
+      <div class="panel__body"><div id="month" class="chart" data-state="loading"></div><div id="month-legend"></div></div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 4</span>
+        <h2 class="panel__h">Top zones under the current lens</h2>
+      </div>
+      <div class="panel__body"><div id="topzones" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 5</span>
+        <h2 class="panel__h">How concentrated the city is</h2>
+      </div>
+      <div class="panel__body"><div id="conc" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Each step is one more zone, ranked by trips. A handful of zones carry most of the year, which
+        is why the later pages can talk about "the airport zones" as a real thing rather than a
+        metaphor.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    import { api, boot, lens, panelState, refresh, register, setLens } from '../scripts/app';
+    import {
+      MONTHS, barChart, barsH, compact, concentration as concChart, el, int, legend, money,
+    } from '../scripts/charts';
+    import { drawYear } from '../scripts/year';
+
+    const host = (id: string) => document.getElementById(id)!;
+
+    const FINDINGS = [
+      { lead: 'Rain does not keep New Yorkers off the street.', body: 'Compared only against dry hours in the <b>same month and hour of day</b>, rain moves demand <b>−0.3%</b>. The naive comparison says <b>+11.2%</b>. The entire gap is the clock.' },
+      { lead: 'Snow does.', body: 'Each centimetre of hourly snowfall costs <b>−19.8%</b> of trips, and revenue per ride falls from <b>$29.47</b> under overcast to <b>$26.72</b> in snow.' },
+      { lead: 'Rain moves the map, not the meter.', body: 'JFK and LaGuardia lose <b>3.4%</b> of their relative weight when it rains (z = −24.7), while the fare itself moves <b>+0.4%</b>. Weather changes who rides, not what they pay.' },
+      { lead: 'Four zones carry a quarter of the money.', body: 'The long-haul zones run <b>9.1%</b> of trips and <b>23.8%</b> of revenue. Zone 132 alone books <b>$82.19</b> a ride against a citywide <b>$29.49</b>.' },
+    ];
+
+    register(async () => {
+      const [sum, hours, months, zones, conc] = await Promise.all([
+        api<any>('summary'),
+        api<any[]>('cab/hour'),
+        api<any[]>('cab/month'),
+        api<any[]>('zones', { limit: 12 }),
+        api<{ total: number; points: { n: number; share: number }[] }>('cab/concentration'),
+      ]);
+
+      // ---- KPI strip: a ruled table of figures, not a row of cards
+      const k = host('kpis');
+      const items = [
+        { label: 'Trips', value: int(sum.trips), note: `${int(sum.hours)} hours · ${sum.zones} zones` },
+        { label: 'Revenue', value: money(sum.revenue), note: `${money(sum.revenuePerHour)} per hour` },
+        { label: 'Revenue / trip', value: money(sum.revenuePerTrip, true), note: `fare ${money(sum.farePerTrip, true)} · tip ${sum.tipPct}% of fare` },
+        { label: 'Trips / hour', value: int(sum.tripsPerHour), note: `peak ${sum.peakHour ? String(sum.peakHour.hod).padStart(2, '0') + ':00' : '—'}` },
+        { label: 'Mean trip', value: `${sum.distance} mi`, note: `${sum.duration} min · ${sum.passengers} pax` },
+        { label: 'Tip rate', value: `${sum.tipPct}%`, note: 'of fare, trip-weighted' },
+        { label: 'Mean temp', value: `${sum.meanTemp} °C`, note: `${sum.meanPrecip} mm/h mean` },
+        { label: 'Wet hours', value: int(sum.wetHours), note: `${((100 * sum.wetHours) / Math.max(1, sum.hours)).toFixed(1)}% of this lens` },
+      ];
+      const dl = el('dl', { class: 'kpis' });
+      for (const it of items) {
+        const w = el('div', { class: 'kpi' });
+        w.append(el('dt', {}, [it.label]), el('dd', { class: 'num' }, [it.value]), el('p', { class: 'kpi__note' }, [it.note]));
+        dl.append(w);
+      }
+      k.innerHTML = '';
+      k.append(dl);
+      panelState(k, 'ready');
+
+      // ---- daily clock
+      barChart(host('hour'), hours.map((h) => ({ key: h.key, label: String(h.key).padStart(2, '0'), value: h.tripsPerHour })), {
+        height: 176, yLabel: 'trips/h',
+        highlight: (p) => lens().hod === p.key,
+        onSelect: (p) => setLens({ hod: lens().hod === p.key ? null : (p.key as number) }),
+      });
+      legend(host('hour-legend'), [{ swatch: 'bar', colour: 'var(--ink)', label: 'mean trips per hour' }]);
+      panelState(host('hour'), 'ready');
+
+      // ---- month, revenue as a second series
+      barChart(host('month'), months.map((m) => ({ key: m.key, label: MONTHS[m.key - 1], value: m.tripsPerHour, value2: m.revenuePerHour })), {
+        height: 176, yLabel: 'trips/h', y2Label: 'rev/h',
+        highlight: (p) => lens().mon === p.key,
+        onSelect: (p) => setLens({ mon: lens().mon === p.key ? null : (p.key as number) }),
+      });
+      legend(host('month-legend'), [
+        { swatch: 'bar', colour: 'var(--ink)', label: 'trips per hour' },
+        { swatch: 'line', colour: 'var(--rev)', label: 'revenue per hour', note: 'right axis' },
+      ]);
+      panelState(host('month'), 'ready');
+
+      // ---- top zones
+      barsH(host('topzones'), zones.map((z) => ({ key: z.id, label: z.name, value: z.trips })), { rowH: 20, labelW: 132, fmt: compact });
+      panelState(host('topzones'), 'ready');
+
+      // ---- concentration
+      concChart(host('conc'), conc.points, { height: 164 });
+      panelState(host('conc'), 'ready');
+    });
+
+    register(async () => {
+      const y = host('year');
+      try {
+        const series = await api<any[]>('cab/series');
+        drawYear(y, series);
+        panelState(y, 'ready');
+      } catch (e) {
+        panelState(y, 'error', (e as Error).message);
+      }
+    });
+
+    function buildFindings() {
+      const ol = host('findings');
+      ol.innerHTML = '';
+      for (const f of FINDINGS) {
+        const li = el('li', { class: 'finding' });
+        li.append(el('p', { class: 'finding__lead' }, [f.lead]));
+        const b = el('p', { class: 'finding__body' });
+        b.innerHTML = f.body;
+        li.append(b);
+        ol.append(li);
+      }
+    }
+
+    boot(() => { buildFindings(); void refresh(); });
+  </script>
+</Shell>

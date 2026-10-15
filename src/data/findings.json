@@ -1,0 +1,534 @@
+{
+ "generated": "scripts/analyse.py over src/data/*.json",
+ "totals": {
+  "hours": 8759,
+  "zones": 262,
+  "rows": 976425,
+  "trips": 34938284,
+  "revenue": 1030220295,
+  "tripsPerHour": 3988.8,
+  "revenuePerTrip": 29.49,
+  "farePerTrip": 20.84,
+  "tipPerTrip": 3.69,
+  "tipPct": 17.7,
+  "distMi": 3.93,
+  "durMin": 16.4,
+  "pax": 1.3,
+  "peakTrips": 9746,
+  "troughTrips": 103,
+  "peakTs": "2025-05-08 18:00:00",
+  "troughTs": "2025-04-15 03:00:00",
+  "peakRatio": 94.6,
+  "peakRevRatio": 330.9,
+  "wetHours": 1209,
+  "wetShare": 13.8,
+  "snowHours": 135,
+  "top10Share": 40.5,
+  "top50Share": 95.9
+ },
+ "rain": {
+  "controlledPct": -0.35,
+  "naivePct": 11.18,
+  "cells": 224,
+  "cellsWetHigher": 114,
+  "p05": 0.632,
+  "p95": 1.426,
+  "coefPerMm": 1.59,
+  "tStat": 2.3,
+  "snowCoefPerCm": -19.77,
+  "snowTStat": -3.2,
+  "snowControlledPct": -4.78,
+  "r2": 0.829,
+  "r2NoWeather": 0.828,
+  "heavy": [
+   {
+    "threshold": 1.0,
+    "hours": 315,
+    "controlledPct": 3.6,
+    "naivePct": 7.3,
+    "cells": 86,
+    "cellsBelowOne": 40
+   },
+   {
+    "threshold": 2.0,
+    "hours": 150,
+    "controlledPct": 1.8,
+    "naivePct": 3.6,
+    "cells": 29,
+    "cellsBelowOne": 14
+   },
+   {
+    "threshold": 2.5,
+    "hours": 113,
+    "controlledPct": -3.0,
+    "naivePct": 0.8,
+    "cells": 18,
+    "cellsBelowOne": 11
+   },
+   {
+    "threshold": 4.0,
+    "hours": 53,
+    "controlledPct": -3.8,
+    "naivePct": 8.3,
+    "cells": 4,
+    "cellsBelowOne": 3
+   }
+  ],
+  "econ": {
+   "fare": {
+    "controlled": 1.0043,
+    "raw": 0.9882,
+    "pct": 0.43
+   },
+   "amount": {
+    "controlled": 1.0036,
+    "raw": 0.9936,
+    "pct": 0.36
+   },
+   "trip distance": {
+    "controlled": 0.9969,
+    "raw": 0.9575,
+    "pct": -0.31
+   },
+   "tip": {
+    "controlled": 1.0144,
+    "raw": 1.0157,
+    "pct": 1.44
+   },
+   "duration min": {
+    "controlled": 1.0106,
+    "raw": 1.0291,
+    "pct": 1.06
+   },
+   "passengers": {
+    "controlled": 0.9988,
+    "raw": 1.0007,
+    "pct": -0.12
+   }
+  }
+ },
+ "zones": {
+  "qualifying": 64,
+  "volMin": 20000,
+  "gainers": [
+   {
+    "id": 230,
+    "trips": 1218620,
+    "shareDry": 0.03464,
+    "shareWet": 0.03621,
+    "index": 1.0453,
+    "deltaPP": 0.1569,
+    "revenue": 35503402,
+    "amount": 29.13,
+    "dist": 3.0
+   },
+   {
+    "id": 237,
+    "trips": 1829977,
+    "shareDry": 0.05214,
+    "shareWet": 0.05371,
+    "index": 1.0301,
+    "deltaPP": 0.1568,
+    "revenue": 38457351,
+    "amount": 21.02,
+    "dist": 1.73
+   },
+   {
+    "id": 142,
+    "trips": 1122473,
+    "shareDry": 0.03191,
+    "shareWet": 0.03336,
+    "index": 1.0455,
+    "deltaPP": 0.1451,
+    "revenue": 25244336,
+    "amount": 22.49,
+    "dist": 2.11
+   },
+   {
+    "id": 163,
+    "trips": 1034185,
+    "shareDry": 0.0294,
+    "shareWet": 0.03073,
+    "index": 1.0451,
+    "deltaPP": 0.1326,
+    "revenue": 26654612,
+    "amount": 25.77,
+    "dist": 2.37
+   },
+   {
+    "id": 161,
+    "trips": 1733350,
+    "shareDry": 0.04941,
+    "shareWet": 0.05074,
+    "index": 1.0268,
+    "deltaPP": 0.1324,
+    "revenue": 45511829,
+    "amount": 26.26,
+    "dist": 2.3
+   },
+   {
+    "id": 236,
+    "trips": 1546594,
+    "shareDry": 0.0441,
+    "shareWet": 0.0452,
+    "index": 1.025,
+    "deltaPP": 0.1104,
+    "revenue": 32722644,
+    "amount": 21.16,
+    "dist": 1.89
+   },
+   {
+    "id": 239,
+    "trips": 927424,
+    "shareDry": 0.0264,
+    "shareWet": 0.02738,
+    "index": 1.0371,
+    "deltaPP": 0.0979,
+    "revenue": 20334100,
+    "amount": 21.93,
+    "dist": 2.11
+   },
+   {
+    "id": 162,
+    "trips": 1289305,
+    "shareDry": 0.03676,
+    "shareWet": 0.0377,
+    "index": 1.0256,
+    "deltaPP": 0.094,
+    "revenue": 32463110,
+    "amount": 25.18,
+    "dist": 2.26
+   }
+  ],
+  "losers": [
+   {
+    "id": 249,
+    "trips": 746321,
+    "shareDry": 0.02159,
+    "shareWet": 0.0201,
+    "index": 0.9309,
+    "deltaPP": -0.1491,
+    "revenue": 17583811,
+    "amount": 23.56,
+    "dist": 2.16
+   },
+   {
+    "id": 132,
+    "trips": 1845326,
+    "shareDry": 0.05299,
+    "shareWet": 0.05182,
+    "index": 0.9778,
+    "deltaPP": -0.1179,
+    "revenue": 151663584,
+    "amount": 82.19,
+    "dist": 15.66
+   },
+   {
+    "id": 148,
+    "trips": 350354,
+    "shareDry": 0.0102,
+    "shareWet": 0.00903,
+    "index": 0.8852,
+    "deltaPP": -0.1171,
+    "revenue": 9109285,
+    "amount": 26.0,
+    "dist": 2.82
+   },
+   {
+    "id": 79,
+    "trips": 758081,
+    "shareDry": 0.02187,
+    "shareWet": 0.02074,
+    "index": 0.9483,
+    "deltaPP": -0.1131,
+    "revenue": 17867602,
+    "amount": 23.57,
+    "dist": 2.32
+   },
+   {
+    "id": 138,
+    "trips": 1205563,
+    "shareDry": 0.03466,
+    "shareWet": 0.03365,
+    "index": 0.971,
+    "deltaPP": -0.1006,
+    "revenue": 84951992,
+    "amount": 70.47,
+    "dist": 9.66
+   },
+   {
+    "id": 114,
+    "trips": 496445,
+    "shareDry": 0.01435,
+    "shareWet": 0.01343,
+    "index": 0.936,
+    "deltaPP": -0.0918,
+    "revenue": 11824446,
+    "amount": 23.82,
+    "dist": 2.23
+   },
+   {
+    "id": 144,
+    "trips": 352074,
+    "shareDry": 0.01016,
+    "shareWet": 0.0096,
+    "index": 0.9446,
+    "deltaPP": -0.0563,
+    "revenue": 8904578,
+    "amount": 25.29,
+    "dist": 2.46
+   },
+   {
+    "id": 262,
+    "trips": 439258,
+    "shareDry": 0.01266,
+    "shareWet": 0.01211,
+    "index": 0.9565,
+    "deltaPP": -0.055,
+    "revenue": 9766507,
+    "amount": 22.23,
+    "dist": 2.3
+   }
+  ],
+  "sigP05": 53,
+  "sigBonferroni": 40,
+  "indexMin": 0.828,
+  "indexMax": 1.045,
+  "indexMedian": 0.988,
+  "longHaulIds": [
+   132,
+   138,
+   70,
+   76
+  ],
+  "longHaulTripsShare": 9.1,
+  "longHaulRevShare": 23.8,
+  "longHaulIndex": 0.9663,
+  "longHaulZ": -24.7,
+  "longHaulP": "9.9e-135",
+  "longHaulShareDry": 9.1729,
+  "longHaulShareWet": 8.929,
+  "longHaulDeltaPP": -0.2439,
+  "longHaul": [
+   {
+    "id": 132,
+    "trips": 1845326,
+    "revenue": 151663584,
+    "amount": 82.19,
+    "dist": 15.66,
+    "dur": 44.1,
+    "shareDry": 0.05299,
+    "shareWet": 0.05182,
+    "index": 0.9778,
+    "z": -11.2
+   },
+   {
+    "id": 138,
+    "trips": 1205563,
+    "revenue": 84951992,
+    "amount": 70.47,
+    "dist": 9.66,
+    "dur": 31.2,
+    "shareDry": 0.03466,
+    "shareWet": 0.03365,
+    "index": 0.971,
+    "z": -11.7
+   },
+   {
+    "id": 70,
+    "trips": 119147,
+    "revenue": 8085679,
+    "amount": 67.86,
+    "dist": 9.56,
+    "dur": 30.7,
+    "shareDry": 0.00343,
+    "shareWet": 0.00329,
+    "index": 0.9582,
+    "z": -5.2
+   },
+   {
+    "id": 76,
+    "trips": 21948,
+    "revenue": 794590,
+    "amount": 36.2,
+    "dist": 8.13,
+    "dur": 48.0,
+    "shareDry": 0.00064,
+    "shareWet": 0.00053,
+    "index": 0.8281,
+    "z": -9.4
+   }
+  ],
+  "z132": {
+   "shareDry": 0.05299,
+   "shareWet": 0.05182,
+   "index": 0.9778,
+   "z": -11.2
+  },
+  "z138": {
+   "shareDry": 0.03466,
+   "shareWet": 0.03365,
+   "index": 0.971,
+   "z": -11.7
+  }
+ },
+ "codes": [
+  {
+   "code": 0,
+   "label": "Clear",
+   "hours": 2843,
+   "tripsPerHour": 3684.8,
+   "amountPerTrip": 29.52,
+   "dist": 4.02,
+   "dur": 16.3,
+   "tipPct": 17.45,
+   "tripShare": 0.29984
+  },
+  {
+   "code": 1,
+   "label": "Mainly clear",
+   "hours": 865,
+   "tripsPerHour": 4100.5,
+   "amountPerTrip": 29.63,
+   "dist": 3.89,
+   "dur": 16.5,
+   "tipPct": 17.82,
+   "tripShare": 0.10152
+  },
+  {
+   "code": 2,
+   "label": "Partly cloudy",
+   "hours": 633,
+   "tripsPerHour": 4097.3,
+   "amountPerTrip": 29.46,
+   "dist": 3.87,
+   "dur": 16.4,
+   "tipPct": 17.65,
+   "tripShare": 0.07423
+  },
+  {
+   "code": 3,
+   "label": "Overcast",
+   "hours": 3209,
+   "tripsPerHour": 4064.1,
+   "amountPerTrip": 29.47,
+   "dist": 3.92,
+   "dur": 16.4,
+   "tipPct": 17.81,
+   "tripShare": 0.37328
+  },
+  {
+   "code": 51,
+   "label": "Light drizzle",
+   "hours": 595,
+   "tripsPerHour": 4574.8,
+   "amountPerTrip": 29.59,
+   "dist": 3.77,
+   "dur": 17.1,
+   "tipPct": 18.2,
+   "tripShare": 0.07791
+  },
+  {
+   "code": 53,
+   "label": "Drizzle",
+   "hours": 187,
+   "tripsPerHour": 4433.6,
+   "amountPerTrip": 29.42,
+   "dist": 3.78,
+   "dur": 16.9,
+   "tipPct": 18.06,
+   "tripShare": 0.02373
+  },
+  {
+   "code": 55,
+   "label": "Dense drizzle",
+   "hours": 63,
+   "tripsPerHour": 4502.8,
+   "amountPerTrip": 29.22,
+   "dist": 3.68,
+   "dur": 16.8,
+   "tipPct": 18.36,
+   "tripShare": 0.00812
+  },
+  {
+   "code": 61,
+   "label": "Light rain",
+   "hours": 120,
+   "tripsPerHour": 4524.1,
+   "amountPerTrip": 29.55,
+   "dist": 3.82,
+   "dur": 17.0,
+   "tipPct": 18.32,
+   "tripShare": 0.01554
+  },
+  {
+   "code": 63,
+   "label": "Rain",
+   "hours": 96,
+   "tripsPerHour": 3845.9,
+   "amountPerTrip": 29.94,
+   "dist": 4.12,
+   "dur": 17.5,
+   "tipPct": 17.77,
+   "tripShare": 0.01057
+  },
+  {
+   "code": 65,
+   "label": "Heavy rain",
+   "hours": 13,
+   "tripsPerHour": 4860.7,
+   "amountPerTrip": 29.65,
+   "dist": 4.09,
+   "dur": 18.1,
+   "tipPct": 17.94,
+   "tripShare": 0.00181
+  },
+  {
+   "code": 71,
+   "label": "Light snow",
+   "hours": 62,
+   "tripsPerHour": 3904.5,
+   "amountPerTrip": 28.31,
+   "dist": 3.83,
+   "dur": 15.7,
+   "tipPct": 17.92,
+   "tripShare": 0.00693
+  },
+  {
+   "code": 73,
+   "label": "Snow",
+   "hours": 58,
+   "tripsPerHour": 3080.7,
+   "amountPerTrip": 26.72,
+   "dist": 3.54,
+   "dur": 14.8,
+   "tipPct": 18.06,
+   "tripShare": 0.00511
+  },
+  {
+   "code": 75,
+   "label": "Heavy snow",
+   "hours": 15,
+   "tripsPerHour": 3292.5,
+   "amountPerTrip": 25.75,
+   "dist": 2.81,
+   "dur": 14.8,
+   "tipPct": 19.32,
+   "tripShare": 0.00141
+  }
+ ],
+ "rush": {
+  "peak": {
+   "pct": 1.1,
+   "cells": 74
+  },
+  "offPeak": {
+   "pct": 1.4,
+   "cells": 52
+  },
+  "overnight": {
+   "pct": 7.5,
+   "cells": 52
+  }
+ }
+}

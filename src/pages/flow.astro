@@ -1,0 +1,345 @@
+---
+import Shell from '../layouts/Shell.astro';
+
+/* Snippets live in the frontmatter so the braces in the pipeline are not parsed
+   as Astro expressions. */
+const CODE_FLOW = `// origin and destination marginals, per zone, under the current lens
+{ $group: { _id: '$zone',
+            pickups:  { $sum: '$trips' },      // trips that STARTED here
+            dropoffs: { $sum: '$dropoffs' },   // trips that ENDED here
+            revenue:  { $sum: '$revenue' } } },
+{ $addFields: { net: { $subtract: ['$pickups', '$dropoffs'] } } }`;
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+---
+
+<Shell
+  kicker="Origin & destination"
+  title="Who leaves, who arrives"
+  lede="The extract carries two counts per hour and zone: trip_count, the trips that started there, and dropoff_count, the trips that ended there. That is enough to show the city breathing — which zones emit riders and which absorb them — and to draw both an origin and a destination density. It is not enough to say how many people went from Midtown to JFK, and this page says why."
+>
+  <div class="grid">
+    <div class="panel panel--wide">
+      <div class="panel__body"><div id="kpis" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">The limit, stated first</span>
+        <h2 class="panel__h">What this data can and cannot say about a journey</h2>
+      </div>
+      <div class="panel__body">
+        <div class="prose">
+          <p>
+            A true origin–destination matrix needs one row per journey pairing a pickup zone with a
+            dropoff zone. This file does not have that. It has <code>trip_count</code> and
+            <code>dropoff_count</code> as <b>two separate marginals</b> of the same trip set: for a
+            given hour and zone you learn how many trips started there and how many ended there,
+            but never which start belonged to which end.
+          </p>
+          <p>
+            So the honest statement is <b>"JFK is the origin of 1.85M trips and the destination of
+            320K"</b>, not "X people went from Midtown to JFK". Everything on this page is built from
+            those marginals. The panel directly below gives the two densities; the diverging chart
+            gives the net, which is the part of the story the marginals <em>can</em> tell.
+          </p>
+        </div>
+        <pre class="codewrap mt3"><code set:html={esc(CODE_FLOW)} /></pre>
+      </div>
+    </div>
+
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Figure 1</span>
+        <h2 class="panel__h">Net flow: the city's emitters and absorbers</h2>
+      </div>
+      <div class="panel__body"><div id="netbars" class="chart" data-state="loading"></div><div id="netbars-lg"></div></div>
+      <p class="panel__note">
+        Pickups minus dropoffs per zone. Positive means a zone sends more riders out than it takes
+        in; negative means it takes more in than it sends out. The extremes are exactly what you
+        would guess and the middle is where it gets interesting: the transport hubs and Midtown
+        <b>emit</b>, and the residential blocks just outside them <b>absorb</b>.
+      </p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Finding</span>
+        <h2 class="panel__h">The airports only ever leave</h2>
+      </div>
+      <div class="panel__body"><div id="airport" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 2</span>
+        <h2 class="panel__h">Where trips start</h2>
+      </div>
+      <div class="panel__body"><div id="map-pick" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">Pickup density, logarithmic shading. The same map as on the Zones page, showing the origin side of the marginals.</p>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 3</span>
+        <h2 class="panel__h">Where trips end</h2>
+      </div>
+      <div class="panel__body"><div id="map-drop" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Dropoff density. The destination surface is <em>slightly</em> less concentrated than the
+        origin one — the ten busiest zones take <b>40.5%</b> of pickups but only <b>34.7%</b> of
+        dropoffs (Gini 0.859 against 0.833) — but the two correlate at <b>r = 0.93</b> per zone, so the
+        maps look alike by design. Trips start where they also end; the interesting difference is
+        in the tails, not the bulk.
+      </p>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Figure 4</span>
+        <h2 class="panel__h">The city breathing, hour by hour</h2>
+      </div>
+      <div class="panel__body"><div id="cityhour" class="chart" data-state="loading"></div><div id="cityhour-lg"></div></div>
+      <p class="panel__note">
+        Pickups and dropoffs across the clock. The two curves are near-parallel because taxis are a
+        closed system within the city — but they cross, and the crossing is the commute. In the small
+        hours the city picks up slightly more than it sets down; through the morning peak the reverse
+        happens in the residential zones.
+      </p>
+    </div>
+
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Figure 5</span>
+        <h2 class="panel__h">One zone's day</h2>
+      </div>
+      <div class="panel__body">
+        <div class="row mb">
+          <label class="fig-label" for="zpick">Zone</label>
+          <select class="ctl" id="zpick"></select>
+        </div>
+        <div id="zonehour" class="chart" data-state="loading"></div>
+      </div>
+      <p class="panel__note">
+        Pickups and dropoffs for a single zone across the day. Pick a residential neighbourhood and
+        watch it fill in the evening; pick a transport hub and watch it empty in the morning.
+      </p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Table 1</span>
+        <h2 class="panel__h">Balance, ranked</h2>
+      </div>
+      <div class="panel__body"><div id="balance" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Table 2</span>
+        <h2 class="panel__h">Every zone's two marginals</h2>
+      </div>
+      <div class="panel__body"><div id="flowtable" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Pickups, dropoffs, net and the ratio between them. A ratio of 1.00 is a zone that gives and
+        takes equally; the further from 1, the more one-directional it is.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    import { api, boot, panelState, register } from '../scripts/app';
+    import { barsH, compact, int, legend, money, table } from '../scripts/charts';
+    import { buildMap, mapControls } from '../scripts/map';
+
+    const host = (id: string) => document.getElementById(id)!;
+
+    register(async () => {
+      const [sum, flow, cityFlow] = await Promise.all([
+        api<any>('summary'),
+        api<any[]>('flow/zones'),
+        api<any[]>('flow/hour'),
+      ]);
+
+      const pickups = flow.reduce((a, z) => a + z.pickups, 0);
+      const dropoffs = flow.reduce((a, z) => a + z.dropoffs, 0);
+      const outside = sum.trips - sum.dropoffs;
+      const items = [
+        { label: 'Pickups', value: int(pickups), note: 'trips that started in a mapped zone' },
+        { label: 'Dropoffs', value: int(dropoffs), note: 'trips that ended in a mapped zone' },
+        { label: 'Difference', value: int(outside), note: `${((100 * outside) / Math.max(1, sum.trips)).toFixed(1)}% — ended outside the 262 zones, or unreconciled` },
+        { label: 'Biggest emitter', value: flow[0] ? (flow[0].net >= 0 ? '+' : '') + compact(flow[0].net) : '—', note: flow[0]?.name },
+        { label: 'Biggest absorber', value: flow.length ? compact(flow[flow.length - 1].net) : '—', note: flow[flow.length - 1]?.name },
+        { label: 'Zones that emit', value: String(flow.filter((z) => z.net > 0).length), note: 'of the zones over 20k trips + dropoffs' },
+        { label: 'Zones that absorb', value: String(flow.filter((z) => z.net < 0).length) },
+        { label: 'Most one-way', value: flow.length ? Math.max(...flow.map((z) => z.ratio ?? 0)).toFixed(2) + '×' : '—', note: 'pickups per dropoff' },
+      ];
+      const dl = document.createElement('dl');
+      dl.className = 'kpis';
+      for (const it of items) {
+        const w = document.createElement('div');
+        w.className = 'kpi';
+        w.append(
+          Object.assign(document.createElement('dt'), { textContent: it.label }),
+          Object.assign(document.createElement('dd'), { className: 'num', textContent: it.value }),
+          Object.assign(document.createElement('p'), { className: 'kpi__note', textContent: it.note }),
+        );
+        dl.append(w);
+      }
+      host('kpis').innerHTML = '';
+      host('kpis').append(dl);
+      panelState(host('kpis'), 'ready');
+
+      // ---- net flow, diverging
+      const byNet = [...flow].sort((a, b) => b.net - a.net);
+      const div = [...byNet.slice(-9).reverse(), ...byNet.slice(0, 9)];
+      barsH(host('netbars'), div.map((z) => ({ key: z.id, label: z.name, value: z.net })), {
+        rowH: 20, labelW: 184,
+        max: Math.max(...div.map((z) => Math.abs(z.net))) * 2.1,
+        fmt: (v) => (v >= 0 ? '+' : '−') + compact(Math.abs(v)),
+        colour: (p) => ((p.value as number) >= 0 ? 'var(--alert)' : 'var(--rain)'),
+        onSelect: (p) => { location.href = `/zones?zone=${p.key}`; },
+      });
+      legend(host('netbars-lg'), [
+        { swatch: 'bar', colour: 'var(--alert)', label: 'emits — sends more riders out than it takes in' },
+        { swatch: 'bar', colour: 'var(--rain)', label: 'absorbs — takes more in than it sends out' },
+      ]);
+      panelState(host('netbars'), 'ready');
+
+      // ---- the airports
+      const airports = ['JFK Airport', 'LaGuardia Airport'];
+      const rows = flow.filter((z) => airports.some((a) => z.name.startsWith(a.split(' ')[0])));
+      const bars = rows.flatMap((z) => ([
+        { key: `${z.id}-up`, label: `${z.name} ↑`, value: z.pickups },
+        { key: `${z.id}-dn`, label: `${z.name} ↓`, value: z.dropoffs },
+      ]));
+      barsH(host('airport'), bars, {
+        rowH: 24, labelW: 118,
+        fmt: (v) => compact(v),
+        colour: (p) => (String(p.key).endsWith('-up') ? 'var(--alert)' : 'var(--rain)'),
+      });
+      panelState(host('airport'), 'ready');
+
+      // ---- the two density maps
+      const geoP = (await fetch('/geo/taxi_zones.geojson').then((r) => r.json()));
+      void geoP;
+      const pickVals = new Map(flow.map((z) => [z.id, z.pickups]));
+      const dropVals = new Map(flow.map((z) => [z.id, z.dropoffs]));
+      const m1 = await buildMap(host('map-pick'), { onSelect: (id) => { location.href = `/zones?zone=${id}`; }, getName: () => '' });
+      m1.setMetric('trips', pickVals);
+      mapControls(host('map-pick').parentElement as HTMLElement, m1);
+      panelState(host('map-pick'), 'ready');
+      const m2 = await buildMap(host('map-drop'), { onSelect: (id) => { location.href = `/zones?zone=${id}`; }, getName: () => '' });
+      m2.setMetric('dropoffs', dropVals);
+      mapControls(host('map-drop').parentElement as HTMLElement, m2);
+      panelState(host('map-drop'), 'ready');
+
+      // ---- city hourly
+      const ch = host('cityhour');
+      const { s, scale, ticks, tick, mount } = await import('../scripts/charts');
+      const W = Math.max(300, Math.floor(ch.clientWidth || 640));
+      const H = 220;
+      const svg = s('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, height: H, role: 'img' });
+      const mL = 48, mR = 14, mT = 16, mB = 30;
+      const iw = W - mL - mR, ih = H - mT - mB;
+      const hi = Math.max(...cityFlow.map((h) => Math.max(h.pickupsPerHour, h.dropoffsPerHour)));
+      const y = scale(0, hi, mT + ih, mT);
+      const x = scale(0, 23, mL, mL + iw);
+      for (const t of ticks(0, hi, 4)) {
+        svg.append(s('line', { x1: mL, x2: mL + iw, y1: y(t), y2: y(t), stroke: 'var(--rule)', 'stroke-width': 1 }));
+        svg.append(tick(mL - 7, y(t) + 3.5, compact(t), 'end'));
+      }
+      const band = s('g', {});
+      cityFlow.forEach((h) => {
+        const yUp = y(h.pickupsPerHour), yDn = y(h.dropoffsPerHour);
+        band.append(s('rect', {
+          x: x(h.hod) - iw / 24 / 2, y: Math.min(yUp, yDn), width: iw / 24,
+          height: Math.max(0.6, Math.abs(yUp - yDn)),
+          fill: h.net >= 0 ? 'var(--alert)' : 'var(--rain)', 'fill-opacity': 0.5,
+        }));
+      });
+      svg.append(band);
+      for (const [key, col, dash] of [['pickupsPerHour', 'var(--ink)', ''], ['dropoffsPerHour', 'var(--rain)', '4 3']] as [string, string, string][]) {
+        let d = '';
+        cityFlow.forEach((v, i) => { d += (i ? 'L' : 'M') + x(v.hod).toFixed(1) + ' ' + y((v as any)[key]).toFixed(1); });
+        svg.append(s('path', { d, fill: 'none', stroke: col, 'stroke-width': 1.8, 'stroke-dasharray': dash }));
+      }
+      svg.append(s('line', { x1: mL, x2: mL + iw, y1: mT + ih, y2: mT + ih, stroke: 'var(--rule-ink)', 'stroke-width': 1 }));
+      for (let h = 0; h < 24; h += 2) svg.append(tick(x(h), mT + ih + 14, String(h).padStart(2, '0'), 'middle', 9));
+      mount(ch, svg);
+      legend(host('cityhour-lg'), [
+        { swatch: 'line', colour: 'var(--ink)', label: 'pickups per hour' },
+        { swatch: 'line', colour: 'var(--rain)', label: 'dropoffs per hour' },
+        { swatch: 'bar', colour: 'var(--rule-strong)', label: 'gap between them', note: 'red = citywide net emission that hour' },
+      ]);
+      panelState(ch, 'ready');
+
+      // ---- one zone's day
+      const zsel = host('zpick') as HTMLSelectElement;
+      const notable = flow.filter((z) => ['JFK Airport', 'LaGuardia Airport', 'Penn Station/Madison Sq West', 'Midtown Center', 'Upper West Side North', 'East Harlem South', 'Times Sq/Theatre District', 'Lincoln Square West'].includes(z.name));
+      for (const z of notable) zsel.add(new Option(`${z.name} (${z.net >= 0 ? '+' : '−'}${compact(Math.abs(z.net))})`, String(z.id)));
+      zsel.value = String(notable[0]?.id ?? flow[0].id);
+
+      const drawZone = async () => {
+        const id = Number(zsel.value);
+        const fh = await api<any[]>('flow/hour', { zone: id });
+        const zh = host('zonehour');
+        const W2 = Math.max(300, Math.floor(zh.clientWidth || 640));
+        const H2 = 210;
+        const svg2 = s('svg', { width: '100%', viewBox: `0 0 ${W2} ${H2}`, height: H2, role: 'img' });
+        const l = 48, r = 14, t2 = 16, b2 = 30;
+        const iw2 = W2 - l - r, ih2 = H2 - t2 - b2;
+        const hi2 = Math.max(...fh.map((h) => Math.max(h.pickupsPerHour, h.dropoffsPerHour)), 1);
+        const y2 = scale(0, hi2, t2 + ih2, t2);
+        const x2 = scale(0, 23, l, l + iw2);
+        for (const tk of ticks(0, hi2, 4)) {
+          svg2.append(s('line', { x1: l, x2: l + iw2, y1: y2(tk), y2: y2(tk), stroke: 'var(--rule)', 'stroke-width': 1 }));
+          svg2.append(tick(l - 7, y2(tk) + 3.5, compact(tk), 'end'));
+        }
+        fh.forEach((h) => {
+          svg2.append(s('rect', {
+            x: x2(h.hod) - iw2 / 24 / 2, y: t2, width: iw2 / 24, height: ih2,
+            fill: h.net >= 0 ? 'var(--alert)' : 'var(--rain)', 'fill-opacity': 0.07,
+          }));
+        });
+        for (const [key, col, dash] of [['pickupsPerHour', 'var(--ink)', ''], ['dropoffsPerHour', 'var(--rain)', '4 3']] as [string, string, string][]) {
+          let d = '';
+          fh.forEach((v, i) => { d += (i ? 'L' : 'M') + x2(v.hod).toFixed(1) + ' ' + y2((v as any)[key]).toFixed(1); });
+          svg2.append(s('path', { d, fill: 'none', stroke: col, 'stroke-width': 1.8, 'stroke-dasharray': dash }));
+        }
+        svg2.append(s('line', { x1: l, x2: l + iw2, y1: t2 + ih2, y2: t2 + ih2, stroke: 'var(--rule-ink)', 'stroke-width': 1 }));
+        for (let h = 0; h < 24; h += 2) svg2.append(tick(x2(h), t2 + ih2 + 14, String(h).padStart(2, '0'), 'middle', 9));
+        mount(zh, svg2);
+        panelState(zh, 'ready');
+      };
+      zsel.addEventListener('change', () => void drawZone());
+      await drawZone();
+
+      // ---- balance ranking
+      const byRatio = [...flow].filter((z) => z.pickups >= 20000 && z.dropoffs >= 20000).sort((a, b) => (b.ratio ?? 0) - (a.ratio ?? 0));
+      barsH(host('balance'), [...byRatio.slice(0, 7), ...byRatio.slice(-7)].map((z) => ({ key: z.id, label: z.name, value: z.ratio ?? 1 })), {
+        rowH: 19, labelW: 110, max: 3,
+        fmt: (v) => v.toFixed(2) + '×',
+        colour: (p) => ((p.value as number) >= 1 ? 'var(--alert)' : 'var(--rain)'),
+        onSelect: (p) => { location.href = `/zones?zone=${p.key}`; },
+      });
+      panelState(host('balance'), 'ready');
+
+      // ---- full table
+      table(host('flowtable'), byNet as unknown as Record<string, unknown>[], [
+        { key: 'id', label: 'Zone', align: 'left', fmt: (_v, r: any) => r.name, cls: 'zname' },
+        { key: 'borough', label: 'Borough', align: 'left' },
+        { key: 'pickups', label: 'Pickups', bar: (r: any) => r.pickups, fmt: (v) => int(Number(v)) },
+        { key: 'dropoffs', label: 'Dropoffs', fmt: (v) => int(Number(v)) },
+        { key: 'net', label: 'Net', fmt: (v) => (Number(v) >= 0 ? '+' : '−') + int(Math.abs(Number(v))) },
+        { key: 'ratio', label: 'Up / down', fmt: (v) => (v == null ? '—' : Number(v).toFixed(2) + '×') },
+        { key: 'revenue', label: 'Revenue', fmt: (v) => money(Number(v)) },
+      ], {
+        caption: 'Origin and destination marginals for every zone over 20,000 trips and dropoffs.',
+        onRow: (r: any) => { location.href = `/zones?zone=${r.id}`; },
+      });
+      panelState(host('flowtable'), 'ready');
+    });
+
+    boot(() => {});
+  </script>
+</Shell>

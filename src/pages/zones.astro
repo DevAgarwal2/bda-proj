@@ -1,0 +1,346 @@
+---
+import Shell from '../layouts/Shell.astro';
+---
+
+<Shell
+  kicker="Zones & map"
+  title="Where the trips start"
+  lede="262 pickup zones, from JFK to a handful of streets in the Rockaways. The boundaries are the official NYC TLC zone file; the names and boroughs come from the same file joined on PULocationID; the values come from MongoDB under the lens in the top bar. 258 of the 262 zones have geometry — 264 and 265 are unassigned in the TLC file and stay grey."
+>
+  <div class="grid">
+    <div class="panel panel--wide">
+      <div class="panel__body"><div id="kpis" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Figure 1</span>
+        <h2 class="panel__h" id="map-title">The city, shaded by pickups</h2>
+      </div>
+      <div class="panel__body">
+        <div class="mapbar">
+          <label class="fig-label" for="map-metric">Shade by</label>
+          <select class="ctl" id="map-metric"></select>
+          <span class="mapbar__scale">
+            <span id="ramp-lo">low</span>
+            <span class="mapbar__ramp" id="ramp"></span>
+            <span id="ramp-hi">high</span>
+          </span>
+        </div>
+        <div class="mapwrap">
+          <div id="map" class="chart" data-state="loading"></div>
+          <div class="map__tip" aria-hidden="true"></div>
+        </div>
+      </div>
+      <p class="panel__note" id="map-note"></p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Detail</span>
+        <h2 class="panel__h" id="zone-name">Pick a zone</h2>
+      </div>
+      <div class="panel__body">
+        <div id="zone-kpis" class="chart" data-state="loading"></div>
+        <div id="zone-hour" class="chart" data-state="loading"></div>
+        <div id="zone-kinds" class="chart" data-state="loading"></div>
+      </div>
+      <p class="panel__note">Select a zone on the map, in the table, or from any ranked list on another page.</p>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Table 1</span>
+        <h2 class="panel__h">Zone ranking</h2>
+      </div>
+      <div class="panel__body"><div id="ztable" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">Under the current lens. Click a heading to sort, a row to select the zone on the map.</p>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 2</span>
+        <h2 class="panel__h">Rain shifts the map by zone</h2>
+      </div>
+      <div class="panel__body"><div id="shift" class="chart" data-state="loading"></div><div id="shift-lg"></div></div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 3</span>
+        <h2 class="panel__h">Zones near a point</h2>
+      </div>
+      <div class="panel__body">
+        <div class="row mt3">
+          <label class="fig-label" for="near-at">Point</label>
+          <select class="ctl" id="near-at">
+            <option value="-73.9857,40.7580">Times Square</option>
+            <option value="-73.7781,40.6413">JFK Airport</option>
+            <option value="-73.8740,40.7769">LaGuardia Airport</option>
+            <option value="-73.9654,40.7829">Central Park</option>
+            <option value="-73.9442,40.6782">Brooklyn, Crown Heights</option>
+            <option value="-73.8680,40.8448">The Bronx, Parkchester</option>
+          </select>
+          <label class="fig-label" for="near-km">Within</label>
+          <select class="ctl" id="near-km">
+            <option value="1">1 km</option>
+            <option value="2" selected>2 km</option>
+            <option value="5">5 km</option>
+            <option value="10">10 km</option>
+          </select>
+        </div>
+        <div id="near" class="chart mt3" data-state="loading"></div>
+      </div>
+      <p class="panel__note">
+        A <code>$geoNear</code> query against the <b>2dsphere</b> index on the zone geometries stored in
+        MongoDB — the only panel on this dashboard that asks the database a spatial question rather
+        than a temporal one.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    import { api, boot, lensQuery, panelState, register } from '../scripts/app';
+    import { barChart, barsH, compact, int, legend, money, table } from '../scripts/charts';
+    import { METRICS, buildMap, mapControls, rampStops, type MapHandle, type Metric } from '../scripts/map';
+
+    const host = (id: string) => document.getElementById(id)!;
+    let mapHandle: MapHandle | null = null;
+    const qZone = Number(new URLSearchParams(location.search).get('zone'));
+    let selected: number | null = Number.isFinite(qZone) && qZone > 0 ? qZone : null;
+    let sort = { key: 'trips', dir: -1 as 1 | -1 };
+    let metric: Metric = 'trips';
+
+    register(async () => {
+      const [sum, zones, shiftRain] = await Promise.all([
+        api<any>('summary'),
+        api<any[]>('zones', { limit: 300 }),
+        api<any[]>('interaction/zone-shift'),
+      ]);
+      const byId = new Map<number, any>(zones.map((z) => [z.id, z]));
+      const shiftById = new Map<number, any>(shiftRain.map((z) => [z.id, z]));
+
+      // ---- KPI strip
+      const mapped = zones.filter((z) => z.mapped).length;
+      const top = zones[0];
+      const items = [
+        { label: 'Zones', value: String(zones.length), note: `${mapped} with mapped geometry` },
+        { label: 'Trips', value: int(sum.trips) },
+        { label: 'Busiest zone', value: top ? `${top.trips.toLocaleString()}` : '—', note: top ? `${top.name} · ${top.borough}` : '' },
+        { label: 'Mean $ / trip', value: money(sum.revenuePerTrip, true) },
+        { label: 'Most expensive', value: money(Math.max(...zones.map((z) => z.amount)), true), note: 'per trip, among zones over 20k' },
+        { label: 'Longest trips', value: Math.max(...zones.map((z) => z.distance)).toFixed(1) + ' mi', note: 'mean trip distance' },
+        { label: 'Boroughs', value: String(new Set(zones.map((z) => z.borough)).size), note: 'plus EWR and unknowns' },
+        { label: 'Rain movers', value: String(shiftRain.filter((z) => Math.abs(z.deltaPP) >= 0.1).length), note: 'zones shifting ≥0.1 pp in rain' },
+      ];
+      const dl = document.createElement('dl');
+      dl.className = 'kpis';
+      for (const it of items) {
+        const w = document.createElement('div');
+        w.className = 'kpi';
+        w.append(
+          Object.assign(document.createElement('dt'), { textContent: it.label }),
+          Object.assign(document.createElement('dd'), { className: 'num', textContent: it.value }),
+          Object.assign(document.createElement('p'), { className: 'kpi__note', textContent: it.note }),
+        );
+        dl.append(w);
+      }
+      host('kpis').innerHTML = '';
+      host('kpis').append(dl);
+      panelState(host('kpis'), 'ready');
+
+      // ---- map metric selector
+      const sel = host('map-metric') as HTMLSelectElement;
+      sel.innerHTML = '';
+      for (const m of METRICS) sel.add(new Option(m.label, m.key));
+      sel.value = metric;
+
+      // ---- zone detail
+      const drawDetail = async (id: number | null) => {
+        const k = host('zone-kpis');
+        if (id == null) {
+          host('zone-name').textContent = 'Pick a zone';
+          const prompt = document.createElement('p');
+          prompt.className = 'src';
+          prompt.style.lineHeight = '1.6';
+          prompt.innerHTML =
+            'Select any zone on the map, or any row in the ranking below, to see its hourly shape, ' +
+            'its weather split and its economics under the current lens.';
+          for (const el of ['zone-kpis', 'zone-hour', 'zone-kinds']) {
+            const x = host(el);
+            x.innerHTML = '';
+            x.append(prompt.cloneNode(true));
+            x.dataset.state = 'ready';
+          }
+          return;
+        }
+        const d = await api<any>(`zone/${id}`, {});
+        host('zone-name').textContent = `${d.zone.name}`;
+        const f = d.filtered;
+        const lines: [string, string][] = [
+          ['Borough', d.zone.borough],
+          ['Pickups', f ? int(f.trips) : '—'],
+          ['Dropoffs', f ? int(f.dropoffs) : '—'],
+          ['Net flow', f ? (f.net >= 0 ? '+' : '−') + int(Math.abs(f.net)) : '—'],
+          ['Revenue', f ? money(f.revenue) : '—'],
+          ['$ / trip', f ? money(f.amount, true) : '—'],
+          ['Distance', f ? f.distance.toFixed(2) + ' mi' : '—'],
+          ['Duration', f ? f.duration + ' min' : '—'],
+          ['Tip', f ? f.tipPct + '%' : '—'],
+          ['Peak hour', String(d.zone.peakHour).padStart(2, '0') + ':00'],
+        ];
+        const tbl = document.createElement('table');
+        tbl.className = 'dtable';
+        for (const [a, b] of lines) {
+          const tr = document.createElement('tr');
+          tr.append(Object.assign(document.createElement('td'), { textContent: a, className: 'zname' }),
+                    Object.assign(document.createElement('td'), { textContent: b, className: 'num' }));
+          tbl.append(tr);
+        }
+        const link = document.createElement('p');
+        link.className = 'src mt3';
+        link.innerHTML = `<a href="/zone/${id}">Open the full profile for zone ${id} →</a>`;
+        k.innerHTML = '';
+        k.append(tbl, link);
+        panelState(k, 'ready');
+
+        // pickups against dropoffs over the clock: a zone either breathes in or out
+        const fh = await api<any[]>('flow/hour', { zone: id });
+        const { compareSeries: cmp } = await import('../scripts/charts');
+        const H = 152;
+        const W = Math.max(240, Math.floor(host('zone-hour').clientWidth || 300));
+        const { s: svgEl, scale, ticks, tick, mount } = await import('../scripts/charts');
+        const svg = svgEl('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, height: H, role: 'img' });
+        const mL = 44, mR = 10, mT = 16, mB = 24;
+        const iw = W - mL - mR, ih = H - mT - mB;
+        const hi = Math.max(...fh.map((x) => Math.max(x.pickupsPerHour, x.dropoffsPerHour)), 1);
+        const y = scale(0, hi, mT + ih, mT);
+        const x = scale(0, 23, mL, mL + iw);
+        for (const t of ticks(0, hi, 2)) {
+          svg.append(svgEl('line', { x1: mL, x2: mL + iw, y1: y(t), y2: y(t), stroke: 'var(--rule)', 'stroke-width': 1 }));
+          svg.append(tick(mL - 6, y(t) + 3.5, compact(t), 'end', 9));
+        }
+        for (const [key, col, dash] of [['pickupsPerHour', 'var(--ink)', ''], ['dropoffsPerHour', 'var(--rain)', '4 3']] as [string, string, string][]) {
+          let d = '';
+          fh.forEach((v, i) => { d += (i ? 'L' : 'M') + x(v.hod).toFixed(1) + ' ' + y((v as any)[key]).toFixed(1); });
+          svg.append(svgEl('path', { d, fill: 'none', stroke: col, 'stroke-width': 1.7, 'stroke-dasharray': dash }));
+        }
+        svg.append(svgEl('line', { x1: mL, x2: mL + iw, y1: mT + ih, y2: mT + ih, stroke: 'var(--rule-ink)', 'stroke-width': 1 }));
+        for (let h = 0; h < 24; h += 6) svg.append(tick(x(h) + 2, mT + ih + 12, String(h).padStart(2, '0'), 'middle', 9));
+        mount(host('zone-hour'), svg);
+        panelState(host('zone-hour'), 'ready');
+
+        const KC: Record<string, string> = { dry: 'var(--ink)', rain: 'var(--rain)', snow: 'var(--frost)' };
+        barsH(host('zone-kinds'), d.bykind.map((x: any) => ({ key: x.kind, label: x.kind, value: x.trips })), {
+          rowH: 22, labelW: 56, fmt: (v) => compact(v), colour: (p) => KC[p.key as string] ?? 'var(--ink)',
+        });
+        panelState(host('zone-kinds'), 'ready');
+      };
+
+      // ---- map
+      const mapHost = host('map');
+      const applyMetric = async () => {
+        if (!mapHandle) return;
+        const values = new Map<number, number>();
+        if (metric === 'net' || metric === 'dropoffs') {
+          const flow = await api<any[]>('flow/zones');
+          for (const z of flow) values.set(z.id, metric === 'net' ? z.net : z.dropoffs);
+        } else if (metric === 'rainIndex' || metric === 'snowIndex') {
+          const src = metric === 'rainIndex' ? shiftRain : await api<any[]>('interaction/zone-shift', { on: 'snow' });
+          for (const z of src) if (z.index != null) values.set(z.id, z.index);
+        } else {
+          for (const z of zones) values.set(z.id, z[metric]);
+        }
+        mapHandle.setMetric(metric, values);
+        const meta = METRICS.find((m) => m.key === metric)!;
+        host('map-title').textContent = `The city, shaded by ${meta.label.toLowerCase()}`;
+        host('map-note').innerHTML = meta.note + (meta.diverging
+          ? ' Red is a zone that loses relative weight, blue a zone that gains it.'
+          : ' Darker means more.');
+        host('ramp-lo').textContent = meta.diverging ? 'loses' : 'low';
+        host('ramp-hi').textContent = meta.diverging ? 'gains' : 'high';
+        host('map-note').innerHTML += meta.log ? ' <b>Logarithmic shading.</b>' : '';
+        const rampEl = host('ramp');
+        rampEl.innerHTML = '';
+        for (const c of rampStops(metric)) rampEl.append(Object.assign(document.createElement('span'), { style: `background:${c}` }));
+      };
+
+      mapHandle = await buildMap(mapHost, { onSelect: (id) => selectZone(id), getName: (id) => byId.get(id)?.name ?? `Zone ${id}` });
+      void byId;
+      mapControls(mapHost.parentElement as HTMLElement, mapHandle, () => mapHandle?.select(null));
+      await applyMetric();
+      if (selected != null) { mapHandle.select(selected); mapHandle.zoomTo(selected); void drawDetail(selected); }
+      else void drawDetail(null);
+      panelState(mapHost, 'ready');
+
+      sel.addEventListener('change', () => { metric = sel.value as Metric; void applyMetric(); });
+
+      // ---- ranking table
+      const COLS = [
+        { key: 'id', label: 'Zone', align: 'left' as const, fmt: (_v: unknown, r: any) => r.name, cls: 'zname' },
+        { key: 'borough', label: 'Borough', align: 'left' as const },
+        { key: 'trips', label: 'Trips', bar: (r: any) => r.trips, sortable: true },
+        { key: 'revenue', label: 'Revenue', fmt: (v: unknown) => money(Number(v)), sortable: true },
+        { key: 'amount', label: '$ / trip', fmt: (v: unknown) => money(Number(v), true), sortable: true },
+        { key: 'distance', label: 'Mi', fmt: (v: unknown) => Number(v).toFixed(2), sortable: true },
+        { key: 'duration', label: 'Min', fmt: (v: unknown) => Number(v).toFixed(1), sortable: true },
+        { key: 'tipPct', label: 'Tip', fmt: (v: unknown) => Number(v).toFixed(1) + '%', sortable: true },
+      ];
+      const drawTable = () => {
+        const rows = [...zones].filter((z) => z.trips >= 20000);
+        const key = sort.key as any;
+        rows.sort((a, b) => (a[key] - b[key]) * sort.dir);
+        table(host('ztable'), rows as unknown as Record<string, unknown>[], COLS, {
+          sort,
+          isOn: (r: any) => r.id === selected,
+          onSort: (k) => { sort = { key: k, dir: sort.key === k ? ((sort.dir * -1) as 1 | -1) : -1 }; drawTable(); },
+          onRow: (r: any) => selectZone(r.id),
+          caption: 'Zones with at least 20,000 trips under the current lens.',
+        });
+        panelState(host('ztable'), 'ready');
+      };
+      drawTable();
+
+      // ---- rain shift bars
+      const sorted = [...shiftRain].sort((a, b) => b.deltaPP - a.deltaPP);
+      const div = [...sorted.slice(-8).reverse(), ...sorted.slice(0, 8)];
+      barsH(host('shift'), div.map((z) => ({ key: z.id, label: z.name, value: z.deltaPP })), {
+        rowH: 19, labelW: 176, max: Math.max(...div.map((z) => Math.abs(z.deltaPP))) * 2.1,
+        fmt: (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(3),
+        colour: (p) => ((p.value as number) >= 0 ? 'var(--rain)' : 'var(--alert)'),
+        onSelect: (p) => selectZone(p.key as number),
+      });
+      legend(host('shift-lg'), [
+        { swatch: 'bar', colour: 'var(--rain)', label: 'gains share in rain' },
+        { swatch: 'bar', colour: 'var(--alert)', label: 'loses share in rain' },
+      ]);
+      panelState(host('shift'), 'ready');
+
+      // ---- geo query
+      const runNear = async () => {
+        const [lng, lat] = (host('near-at') as HTMLSelectElement).value.split(',').map(Number);
+        const km = Number((host('near-km') as HTMLSelectElement).value);
+        const rows = await api<any[]>('zones/near', { lng, lat, km, limit: 12 });
+        barsH(host('near'), rows.map((z) => ({ key: z.id, label: `${z.name}`, value: z.km })), {
+          rowH: 21, labelW: 156, max: km, fmt: (v) => v.toFixed(2) + ' km',
+          onSelect: (p) => { const z = rows.find((r) => r.id === p.key); if (z) location.href = `/zones?zone=${z.id}`; },
+        });
+        panelState(host('near'), 'ready');
+      };
+      host('near-at').addEventListener('change', () => void runNear());
+      host('near-km').addEventListener('change', () => void runNear());
+      await runNear();
+
+      function selectZone(id: number) {
+        selected = id;
+        mapHandle?.select(id);
+        mapHandle?.zoomTo(id);
+        void drawDetail(id);
+        drawTable();
+        history.replaceState(null, '', `/zones?zone=${id}`);
+      }
+    });
+
+    boot(() => {});
+  </script>
+</Shell>

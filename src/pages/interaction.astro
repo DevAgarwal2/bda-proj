@@ -1,0 +1,241 @@
+---
+import Shell from '../layouts/Shell.astro';
+---
+
+<Shell
+  kicker="Cab × Weather"
+  title="The join, and what it changes"
+  lede="This is the page the dataset exists for. Taxi demand and hourly weather are joined on the same hour, and every comparison here is made twice: once naively, wet hours against dry hours, and once controlled, wet hours against dry hours in the same month and the same hour of day. The gap between those two answers is the entire argument."
+>
+  <div class="grid">
+    <div class="panel panel--wide">
+      <div class="panel__body"><div id="kpis" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Figure 1</span>
+        <h2 class="panel__h">What rain does, once time of day stops cheating</h2>
+      </div>
+      <div class="panel__body"><div id="rain" class="chart" data-state="loading"></div><div id="rain-lg"></div></div>
+      <p class="panel__note" id="rain-note"></p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Method</span>
+        <h2 class="panel__h">Why the two lines disagree</h2>
+      </div>
+      <div class="panel__body">
+        <div class="prose">
+          <p>
+            Rain does not fall evenly across the clock. It falls disproportionately in daylight and
+            evening hours, when the city is busy regardless of the sky. Comparing all wet hours
+            against all dry hours therefore measures <em>when it rained</em> as much as <em>that it
+            rained</em>.
+          </p>
+          <p>
+            The controlled line removes that: for each precipitation bin it pairs every wet
+            hour against dry hours <b>in the same month and the same hour of day</b>, then averages
+            the cell-by-cell ratio. That is one <code>$facet</code> in mongod, not a post-processing
+            step.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 2</span>
+        <h2 class="panel__h">Temperature against demand</h2>
+      </div>
+      <div class="panel__body"><div id="scatter" class="chart" data-state="loading"></div><div id="scatter-lg"></div></div>
+      <p class="panel__note">
+        Every wet or snowy hour against its trip rate, with dry hours in grey behind. Warm hours look
+        busier, but that is mostly the calendar: hot hours are summer hours. The binned median line
+        flattens noticeably once the clock and the month are accounted for on the panel below.
+      </p>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 3</span>
+        <h2 class="panel__h">Demand by temperature band</h2>
+      </div>
+      <div class="panel__body"><div id="temp" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Mean trips per hour in each temperature band. The variation across the whole −5 to 30 °C
+        range is small compared with the variation across the hours of a single day — a useful foil
+        to the intuition that weather drives demand.
+      </p>
+    </div>
+
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Figure 4</span>
+        <h2 class="panel__h">Where the city goes when it rains</h2>
+      </div>
+      <div class="panel__body"><div id="zshift" class="chart" data-state="loading"></div><div id="zshift-lg"></div></div>
+      <p class="panel__note">
+        Each zone's share of all wet-hour trips against its share of dry-hour trips, in percentage
+        points. Weather is one citywide reading per hour, so no zone was more exposed than another —
+        a shift here can only be the city choosing differently, not the data seeing differently.
+        <b>JFK and LaGuardia are the two biggest losers.</b>
+      </p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Figure 5</span>
+        <h2 class="panel__h">Hardest hit</h2>
+      </div>
+      <div class="panel__body"><div id="losers" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        The five zones that lose the most relative weight in rain, and the five that gain. The
+        airport corridors leave the city; the dense short-haul neighbourhoods absorb what is left.
+      </p>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Table 1</span>
+        <h2 class="panel__h">The weather effect on economics, controlled and naive</h2>
+      </div>
+      <div class="panel__body"><div id="econtable" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Per-trip metrics, each computed the same two ways. If weather mattered to what riders pay,
+        the controlled column would show it. It does not: fare <b>+0.4%</b>, tip <b>+1.4%</b>, trip
+        length <b>−0.3%</b>. Weather changes who rides and where they go; it leaves the meter alone.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    import { api, boot, lens, panelState, register, setLens } from '../scripts/app';
+    import { barsH, barChart, compact, compareSeries, int, legend, money, one, scatter, table } from '../scripts/charts';
+
+    const host = (id: string) => document.getElementById(id)!;
+
+    register(async () => {
+      const [rain, temp, shift, series, econ] = await Promise.all([
+        api<{ dryRate: number; dryHours: number; bins: any[] }>('interaction/rain'),
+        api<any[]>('interaction/temp'),
+        api<any[]>('interaction/zone-shift'),
+        api<any[]>('cab/series'),
+        api<any[]>('weather/economics'),
+      ]);
+
+      const bins = rain.bins;
+      const ctrlAll = bins.filter((b) => b.controlled != null);
+      const meanNaive = bins.filter((b) => b.naive != null).reduce((a, b) => a + b.naive, 0) / Math.max(1, bins.filter((b) => b.naive != null).length);
+
+      const items = [
+        { label: 'Dry-hour rate', value: int(rain.dryRate), note: `${int(rain.dryHours)} dry hours` },
+        { label: 'Naive wet / dry', value: (meanNaive).toFixed(3), note: 'pooled across all bins' },
+        { label: 'Controlled wet / dry', value: (ctrlAll.reduce((a, b) => a + b.controlled, 0) / Math.max(1, ctrlAll.length)).toFixed(3), note: 'same month, same hour of day' },
+        { label: 'Snow per cm/h', value: '−19.8%', note: 'from the regression, t = −3.2' },
+        { label: 'Rain effect on fare', value: '+0.4%', note: 'controlled' },
+        { label: 'Rain effect on tips', value: '+1.4%', note: 'controlled' },
+        { label: 'Heaviest bin', value: bins[bins.length - 1]?.controlled != null ? (bins[bins.length - 1].controlled).toFixed(3) : '—', note: '2.5–5.0 mm/h, few comparable cells' },
+        { label: 'Airport zones in rain', value: '−3.4%', note: 'relative weight, z = −24.7' },
+      ];
+      const dl = document.createElement('dl');
+      dl.className = 'kpis';
+      for (const it of items) {
+        const w = document.createElement('div');
+        w.className = 'kpi';
+        w.append(
+          Object.assign(document.createElement('dt'), { textContent: it.label }),
+          Object.assign(document.createElement('dd'), { className: 'num', textContent: it.value }),
+          Object.assign(document.createElement('p'), { className: 'kpi__note', textContent: it.note }),
+        );
+        dl.append(w);
+      }
+      host('kpis').innerHTML = '';
+      host('kpis').append(dl);
+      panelState(host('kpis'), 'ready');
+
+      // ---- the central figure
+      compareSeries(host('rain'), bins.map((b) => b.label), [
+        { label: 'naive', values: bins.map((b) => b.naive), colour: 'var(--rain)', dash: '4 3', mark: 'square' },
+        { label: 'controlled', values: bins.map((b) => b.controlled), colour: 'var(--ink)', mark: 'circle' },
+      ], { height: 250, centre: 1 });
+      legend(host('rain-lg'), [
+        { swatch: 'sq', colour: 'var(--rain)', label: 'uncorrected wet / dry', note: 'confounded by hour of day' },
+        { swatch: 'line', colour: 'var(--ink)', label: 'controlled for month and hour' },
+        { swatch: 'line', colour: 'var(--rule-strong)', label: 'no effect' },
+      ]);
+      const lastHeavy = bins.find((b) => b.label.includes('2.5'));
+      host('rain-note').innerHTML =
+        `Bins are hourly precipitation in millimetres, with the number of comparable cells and hours beneath each. The controlled line sits on <b>1.00</b> through the light bins and only turns down in the heaviest, where it rests on <b>${lastHeavy?.cells ?? 0} cells</b> — a hint, not a finding. The defensible statement is that precipitation has no measurable effect on demand here.`;
+      panelState(host('rain'), 'ready');
+
+      // ---- scatter temp vs trips, hydrated from the hourly series
+      const pts = series.map((v) => ({ x: v.temp, y: v.trips, kind: v.kind }));
+      scatter(host('scatter'), pts, { height: 240, xLabel: 'HOURLY TEMPERATURE, °C', yLabel: 'trips/h' });
+      legend(host('scatter-lg'), [
+        { swatch: 'dot', colour: 'var(--ink)', label: 'dry hour' },
+        { swatch: 'dot', colour: 'var(--rain)', label: 'rain or drizzle' },
+        { swatch: 'dot', colour: 'var(--frost)', label: 'snow' },
+        { swatch: 'line', colour: 'var(--ink)', label: 'binned median' },
+      ]);
+      panelState(host('scatter'), 'ready');
+
+      // ---- temperature bands
+      barChart(host('temp'), temp.map((t) => ({ key: t.key, label: t.band, value: t.tripsPerHour })), {
+        height: 220, yLabel: 'trips/h', fmt: (v) => compact(v),
+      });
+      panelState(host('temp'), 'ready');
+
+      // ---- zone redistribution, diverging
+      const sorted = [...shift].sort((a, b) => b.deltaPP - a.deltaPP);
+      const top = sorted.slice(0, 8);
+      const bottom = sorted.slice(-8).reverse();
+      const diverging = [...bottom.reverse(), ...top];
+      barsH(host('zshift'), diverging.map((z) => ({
+        key: z.id, label: `${z.name}`, value: z.deltaPP,
+      })), {
+        rowH: 19, labelW: 176, max: Math.max(...diverging.map((z) => Math.abs(z.deltaPP))) * 2.1,
+        fmt: (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(3),
+        colour: (p) => ((p.value as number) >= 0 ? 'var(--rain)' : 'var(--alert)'),
+        onSelect: (p) => { location.href = `/zones?zone=${p.key}`; },
+      });
+      legend(host('zshift-lg'), [
+        { swatch: 'bar', colour: 'var(--rain)', label: 'gains share when it rains' },
+        { swatch: 'bar', colour: 'var(--alert)', label: 'loses share when it rains' },
+      ]);
+      panelState(host('zshift'), 'ready');
+
+      barsH(host('losers'), sorted.slice(-5).reverse().map((z) => ({ key: z.id, label: z.name, value: z.deltaPP })), {
+        rowH: 22, labelW: 124, max: 0.2,
+        fmt: (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(3),
+        colour: () => 'var(--alert)',
+        onSelect: (p) => { location.href = `/zones?zone=${p.key}`; },
+      });
+      panelState(host('losers'), 'ready');
+
+      // ---- economics, controlled vs naive
+      const overcast = econ.find((c) => c.code === 3);
+      const snow = econ.find((c) => c.code === 73);
+      const rows = [
+        { metric: 'Fare per trip', controlled: '+0.4%', naive: '−1.2%', note: 'metered fare only' },
+        { metric: 'Total per trip', controlled: '+0.4%', naive: '−0.6%', note: 'fare + tip + tolls + surcharges' },
+        { metric: 'Trip distance', controlled: '−0.3%', naive: '−4.3%', note: 'the naive drop is time of day' },
+        { metric: 'Tip', controlled: '+1.4%', naive: '+1.6%', note: 'tip amount, not rate' },
+        { metric: 'Duration', controlled: '+1.1%', naive: '+2.9%', note: 'minutes' },
+        { metric: 'Passengers', controlled: '−0.1%', naive: '+0.1%', note: 'people per trip' },
+        { metric: 'Under overcast', controlled: money(overcast?.amount ?? 0, true), naive: '—', note: `$${one(overcast?.amount ?? 0)} per trip, reference sky` },
+        { metric: 'Under snow', controlled: money(snow?.amount ?? 0, true), naive: '—', note: `${(((snow?.amount ?? 0) / (overcast?.amount || 1) - 1) * 100).toFixed(1)}% against overcast` },
+      ];
+      table(host('econtable'), rows as unknown as Record<string, unknown>[], [
+        { key: 'metric', label: 'Per-trip metric', align: 'left', cls: 'zname' },
+        { key: 'controlled', label: 'Controlled wet / dry', align: 'right' },
+        { key: 'naive', label: 'Naive wet / dry', align: 'right' },
+        { key: 'note', label: 'Note', align: 'left' },
+      ], { caption: 'Weather effect on trip economics, controlled against naive.' });
+      panelState(host('econtable'), 'ready');
+    });
+
+    boot(() => {});
+  </script>
+</Shell>

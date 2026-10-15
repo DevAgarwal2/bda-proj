@@ -1,0 +1,46 @@
+---
+/* The global lens. One filter set governs every panel on every page, so it lives
+   in the shell rather than on any one surface. Native selects for the three
+   ordered dimensions, a segmented control for the sky, and a live readout of
+   what the current lens selected. */
+---
+
+<div class="topbar">
+  <div class="topbar__filters">
+    <div class="fgroup">
+      <label class="fig-label" for="f-mon">Month</label>
+      <select class="ctl" id="f-mon">
+        <option value="all">All year</option>
+      </select>
+    </div>
+    <div class="fgroup">
+      <label class="fig-label" for="f-dow">Weekday</label>
+      <select class="ctl" id="f-dow">
+        <option value="all">All week</option>
+      </select>
+    </div>
+    <div class="fgroup">
+      <label class="fig-label" for="f-hod">Hour</label>
+      <select class="ctl" id="f-hod">
+        <option value="all">All hours</option>
+      </select>
+    </div>
+    <div class="fgroup">
+      <span class="fig-label" id="sky-h">Sky</span>
+      <div class="seg" role="group" aria-labelledby="sky-h">
+        <button class="ctl" type="button" data-kind="all" aria-pressed="true">Any</button>
+        <button class="ctl" type="button" data-kind="dry" aria-pressed="false">Dry</button>
+        <button class="ctl" type="button" data-kind="rain" aria-pressed="false">Rain</button>
+        <button class="ctl" type="button" data-kind="snow" aria-pressed="false">Snow</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="topbar__readout">
+    <p class="readout" id="lens-readout" aria-live="polite">
+      <span class="readout__k">Lens</span>
+      <span class="readout__v" id="lens-text">the whole year</span>
+    </p>
+    <button class="ctl" type="button" id="lens-reset" disabled>Clear</button>
+  </div>
+</div>

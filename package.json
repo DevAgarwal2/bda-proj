@@ -1,0 +1,29 @@
+{
+  "name": "nyc-taxi-weather-atlas",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "description": "An analytical figure plate over NYC taxi demand joined to hourly weather, 2025.",
+  "scripts": {
+    "data": "python3 scripts/aggregate.py && python3 scripts/analyse.py",
+    "db:load": ".venv/bin/python scripts/load_mongo.py",
+    "db:shell": "mongosh nyc_taxi",
+    "dev": "astro dev",
+    "build": "astro build",
+    "start": "node ./dist/server/entry.mjs",
+    "preview": "astro preview",
+    "check": "astro check",
+    "shots": "node scripts/shoot.mjs"
+  },
+  "dependencies": {
+    "@astrojs/node": "^9.5.5",
+    "astro": "^5.14.1",
+    "mongodb": "^7.7.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@types/node": "^26.6.4",
+    "playwright": "^1.63.0",
+    "typescript": "^5.9.2"
+  }
+}

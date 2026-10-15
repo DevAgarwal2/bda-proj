@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.astro/
+.DS_Store
+*.log
+
+.env
+.venv/
+
+# Large source extract (113 MB) — exceeds GitHub's 100 MB per-file limit.
+# See README → Getting started for how to obtain/place it.
+nyc_taxi_weather_hourly.csv
+
+# Design-tool working directory + QA screenshots
+.impeccable/
+
+# Generated data snapshots written by the pipeline
+public/data/

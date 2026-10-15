@@ -1,0 +1,280 @@
+---
+import Shell from '../layouts/Shell.astro';
+
+/* Code snippets live in the frontmatter as strings: written inline, the curly
+   braces in the aggregation documents are parsed as Astro expressions. */
+const CODE_MATCH = `const matchStage = (f) => ({ $match: {
+  ...(f.mon != null && { 'cal.mon': f.mon }),
+  ...(f.dow != null && { 'cal.dow': f.dow }),
+  ...(f.hod != null && { 'cal.hod': f.hod }),
+  ...(f.kind !== 'all' && { 'weather.kind': f.kind }),
+}});`;
+
+const CODE_RAIN = `// controlled: bucket the wet hours, keyed by (bin, month:hour cell)
+{ $group: { _id: { b: bin, cell: { $concat: [mon, ':', hod] } },
+            trips: { $sum: '$trips' }, _hours: { $addToSet: '$hour' } } },
+{ $addFields: { hours: { $size: '$_hours' } } },
+{ $match: { hours: { $gte: 2 } } },
+// then divide each cell's wet rate by that same cell's dry rate
+{ $group: { _id: '$_id.b',
+            cells: { $push: { cell: '$_id.cell',
+                              rate: { $divide: ['$trips', '$hours'] } } } } }`;
+
+const CODE_GEO = `db.zones.aggregate([
+  { $geoNear: { near: { type: 'Point', coordinates: [lng, lat] },
+                distanceField: 'metres', maxDistance: km * 1000,
+                spherical: true, key: 'geometry' } },
+  { $limit: 20 },
+])`;
+
+const CODE_RUN = `npm run data      # aggregate.py + analyse.py  ->  src/data/*.json
+npm run db:load   # load_mongo.py              ->  mongodb://127.0.0.1:27017/nyc_taxi
+npm run dev       # astro dev                  ->  http://localhost:4321`;
+
+const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+---
+
+<Shell
+  kicker="Method"
+  title="Lineage, rules and limits"
+  lede="Every number on this dashboard is traceable to the source CSV, to the loader that put it in MongoDB, or to a named aggregation in src/server/pipelines.ts. This page states the join, the weighting rule, the one missing hour, and the things this dataset cannot tell you."
+>
+  <div class="grid">
+    <div class="panel panel--wide">
+      <div class="panel__body"><div id="prov" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Provenance</span>
+        <h2 class="panel__h">The join, and the weighting rule</h2>
+      </div>
+      <div class="panel__body">
+        <div class="prose">
+          <h3>One denormalised extract</h3>
+          <p>
+            The source is a single file: <b>976,425 rows</b>, one per hour per pickup zone, with the
+            hourly Open-Meteo weather reading for that hour joined onto <em>every</em> row of that
+            hour. Weather is verified constant within each hour — the maximum number of distinct
+            values across the ten weather columns inside any single hour is exactly one — so the
+            duplication is lossless and the join cannot have introduced a mismatch.
+          </p>
+          <p>
+            976,425 rows collapse to <b>8,759 hourly records</b> and <b>262 pickup zones</b>.
+            Calendar year 2025 has 8,760 hours; <b>2025-03-09 02:00 is absent</b>, the hour that does
+            not exist when daylight saving begins. Nothing is imputed and no hour is invented: every
+            mean divides by the hours actually recorded.
+          </p>
+          <h3>Weighting</h3>
+          <p>
+            The source's <code>avg_*</code> columns are means <em>within</em> an hour-and-zone, so
+            averaging them across zones would weight a three-trip zone the same as a forty-thousand-trip
+            one. Every multi-zone average here is re-weighted by <code>trip_count</code>. This is the
+            single most common way this dataset is analysed wrongly.
+          </p>
+          <h3>Counting hours</h3>
+          <p>
+            A zone only appears in an hour's rows if it carried at least one trip, so the row count is
+            not the hour count. Every <code>hours</code> figure on this dashboard is the size of a
+            <code>$addToSet</code> on the hour field. Confusing the two inflates trips-per-hour by
+            roughly the mean number of active zones, about 112.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Limits</span>
+        <h2 class="panel__h">What this dataset cannot tell you</h2>
+      </div>
+      <div class="panel__body">
+        <dl class="limits">
+          <dt>Zone names come from outside the CSV</dt>
+          <dd>
+            The extract carries <code>PULocationID</code> and nothing else — no borough, no
+            neighbourhood. Zone names and boroughs on this dashboard are joined from the official NYC
+            TLC zone file (NYC Open Data, dataset <code>8meu-9t5y</code>), which ships 263 features for
+            263 location IDs but only 260 unique IDs — zones 56 and 103 appear more than once. The
+            last feature wins, and 258 of the 262 zones in the extract resolve. Nothing is guessed.
+          </dd>
+          <dt>Weather is citywide, not per zone</dt>
+          <dd>
+            One grid reading per hour, repeated across all 262 zone rows. A zone-level "weather" is
+            really the whole city's weather at that moment. This is why the redistribution finding is
+            credible — no zone was more exposed than another, so a share shift can only be
+            compositional — and why a claim about a zone's <em>own</em> weather would not be.
+          </dd>
+          <dt>Pickups only</dt>
+          <dd>
+            There is no dropoff zone column, so no origin–destination, flow or corridor analysis is
+            possible from this file. Statements about where people <em>go</em> are statements about
+            where trips <em>start</em>.
+          </dd>
+          <dt>Association, not causation</dt>
+          <dd>
+            Snow and demand are almost certainly confounded by season, school calendars and business
+            travel. The controlled comparisons remove month, hour and (in the regression) weekend, but
+            they do not make this an experiment.
+          </dd>
+          <dt>Thirteen conditions, no more</dt>
+          <dd>
+            The extract contains clear-through-overcast and drizzle-through-snow. No thunderstorm, no
+            fog, no freezing rain. Conclusions are about the conditions that actually occurred.
+          </dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Storage</span>
+        <h2 class="panel__h">What is actually in MongoDB</h2>
+      </div>
+      <div class="panel__body"><div id="counts" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        <code>trips</code> holds the raw set so every aggregation runs against the real grain;
+        <code>hourly</code> and <code>zones</code> are shaped for the panels; <code>rollups</code> are
+        the materialised cubes the loader writes; <code>findings</code> holds the analysis output.
+        Uploaded with <code>.venv/bin/python scripts/load_mongo.py</code>.
+      </p>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Indexes</span>
+        <h2 class="panel__h">What mongod is asked to do</h2>
+      </div>
+      <div class="panel__body"><div id="indexes" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Queries</span>
+        <h2 class="panel__h">The aggregations behind each panel</h2>
+      </div>
+      <div class="panel__body">
+        <div class="prose">
+          <p>
+            The filter bar maps to one <code>$match</code>. Every pipeline begins with it, so a change
+            of lens is the same query shape with different bounds:
+          </p>
+        </div>
+        <pre class="codewrap"><code set:html={esc(CODE_MATCH)} /></pre>
+
+        <div class="prose mt4">
+          <h3>The controlled rain comparison — the project's central result</h3>
+          <p>
+            For every precipitation bin, pair each wet hour against dry hours in the
+            <b>same month and the same hour of day</b>, then average the cell-by-cell ratios. Two
+            pipelines, one for the naive answer and one for the controlled one, run as a
+            <code>Promise.all</code>:
+          </p>
+        </div>
+        <pre class="codewrap"><code set:html={esc(CODE_RAIN)} /></pre>
+
+        <div class="prose mt4">
+          <h3>The spatial query</h3>
+          <p>
+            The zone geometries are stored in the <code>zones</code> collection with a
+            <b>2dsphere</b> index, which is what makes the "zones near a point" panel a real database
+            question rather than a client-side filter:
+          </p>
+        </div>
+        <pre class="codewrap"><code set:html={esc(CODE_GEO)} /></pre>
+      </div>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Reproduce</span>
+        <h2 class="panel__h">From the CSV to this page</h2>
+      </div>
+      <div class="panel__body">
+        <div class="prose">
+          <p>Three commands, in order:</p>
+        </div>
+        <pre class="codewrap"><code set:html={esc(CODE_RUN)} /></pre>
+        <div class="prose mt4">
+          <p>
+            <code>analyse.py</code> prints every headline figure to the console as it computes it, so
+            the numbers in the copy can be checked against the source without trusting the interface.
+            A newer build of the visual system lives in <code>DESIGN.md</code>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { api, boot, panelState, register } from '../scripts/app';
+    import { int, table } from '../scripts/charts';
+
+    const host = (id: string) => document.getElementById(id)!;
+
+    register(async () => {
+      const meta = await api<any>('meta');
+      const p = meta.provenance ?? {};
+
+      const items = [
+        { label: 'Source rows', value: (p.sourceRows ?? 0).toLocaleString() },
+        { label: 'Distinct hours', value: (p.distinctHours ?? 0).toLocaleString() },
+        { label: 'Pickup zones', value: String(p.zones ?? 0) },
+        { label: 'Mapped zones', value: String(p.mappedZones ?? 0), note: 'from the TLC zone file' },
+        { label: 'Trips', value: (p.trips ?? 0).toLocaleString() },
+        { label: 'Revenue', value: '$' + ((p.revenue ?? 0) / 1e9).toFixed(3) + 'B' },
+        { label: 'Missing hours', value: String((p.missingHours ?? []).length), note: '2025-03-09 02:00, DST' },
+        { label: 'Loaded', value: p.loadedAt ? new Date(p.loadedAt).toISOString().slice(0, 10) : '—', note: 'UTC date' },
+      ];
+      const dl = document.createElement('dl');
+      dl.className = 'kpis';
+      for (const it of items) {
+        const w = document.createElement('div');
+        w.className = 'kpi';
+        w.append(
+          Object.assign(document.createElement('dt'), { textContent: it.label }),
+          Object.assign(document.createElement('dd'), { className: 'num', textContent: it.value }),
+        );
+        if (it.note) w.append(Object.assign(document.createElement('p'), { className: 'kpi__note', textContent: it.note }));
+        dl.append(w);
+      }
+      host('prov').innerHTML = '';
+      host('prov').append(dl);
+      panelState(host('prov'), 'ready');
+
+      const c = meta.counts ?? {};
+      const sum = Object.values(c).reduce((a: number, b: any) => a + Number(b || 0), 0);
+      table(host('counts'), [
+        { coll: 'trips', docs: c.trips, role: 'Raw (hour × pickup zone), weather denormalised on. Every aggregation runs here.' },
+        { coll: 'hourly', docs: c.hourly, role: 'One record per recorded hour — the master time series.' },
+        { coll: 'zones', docs: c.zones, role: 'Zone totals, names, boroughs and geometry (2dsphere).' },
+        { coll: 'rollups', docs: c.rollups, role: 'Materialised cubes from the loader, for fallback.' },
+        { coll: 'findings', docs: 1, role: 'Output of analyse.py, so the copy and the data cannot drift.' },
+        { coll: 'meta', docs: 1, role: 'This provenance record.' },
+      ] as unknown as Record<string, unknown>[], [
+        { key: 'coll', label: 'Collection', align: 'left', cls: 'zname' },
+        { key: 'docs', label: 'Documents', fmt: (v) => int(Number(v)) },
+        { key: 'share', label: 'Share', bar: (r: any) => Number(r.docs), fmt: (_v, r: any) => ((100 * Number(r.docs)) / Math.max(1, sum)).toFixed(1) + '%' },
+        { key: 'role', label: 'Role', align: 'left' },
+      ], { caption: 'Collections in the nyc_taxi database.' });
+      panelState(host('counts'), 'ready');
+
+      const idx = p.indexes ?? {};
+      const rows: any[] = [];
+      for (const coll of Object.keys(idx)) {
+        for (const i of idx[coll] ?? []) {
+          rows.push({ coll, name: i.name, keys: JSON.stringify(i.key), unique: i.unique ? 'yes' : '' });
+        }
+      }
+      table(host('indexes'), rows as unknown as Record<string, unknown>[], [
+        { key: 'coll', label: 'Collection', align: 'left', cls: 'zname' },
+        { key: 'name', label: 'Index', align: 'left', fmt: (v) => String(v) },
+        { key: 'keys', label: 'Keys', align: 'left', fmt: (v) => String(v) },
+        { key: 'unique', label: 'Unique', align: 'left' },
+      ], { caption: 'Indexes present on the trips, hourly and zones collections.' });
+      panelState(host('indexes'), 'ready');
+    });
+
+    boot(() => {});
+  </script>
+</Shell>

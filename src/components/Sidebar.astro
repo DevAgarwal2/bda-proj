@@ -1,0 +1,50 @@
+---
+/* The primary navigation. A ruled index, not a stack of pills: the current
+   section is marked with a 1px ink rule and a tinted plane, and each row carries
+   the question that section answers rather than an icon. */
+interface Props { path: string }
+const { path } = Astro.props;
+
+const NAV = [
+  { href: '/', label: 'Overview', q: 'The year at a glance' },
+  { href: '/cab', label: 'Cab', q: 'When and how the city rides' },
+  { href: '/weather', label: 'Weather', q: 'What the sky actually did' },
+  { href: '/interaction', label: 'Cab × Weather', q: 'The join, and what it changes' },
+  { href: '/zones', label: 'Zones & map', q: 'Where the trips start' },
+  { href: '/flow', label: 'Origin & destination', q: 'Who leaves, who arrives' },
+  { href: '/method', label: 'Method', q: 'Lineage, rules and limits' },
+];
+const isOn = (href: string) => (href === '/' ? path === '/' || path === '' : path.startsWith(href));
+---
+
+<nav class="side" aria-label="Dashboard sections">
+  <div class="side__brand">
+    <p class="side__mark">NYC <span>×</span> SKY</p>
+    <p class="side__sub">Yellow-taxi demand joined to hourly weather, 2025.</p>
+  </div>
+
+  <ol class="side__list">
+    {
+      NAV.map((n) => (
+        <li class="side__item">
+          <a class="side__link" href={n.href} aria-current={isOn(n.href) ? 'page' : undefined}>
+            <span class="side__label">{n.label}</span>
+            <span class="side__q">{n.q}</span>
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+
+  <div class="side__foot">
+    <dl class="side__facts">
+      <div><dt>Rows</dt><dd class="num" id="side-rows">976,425</dd></div>
+      <div><dt>Hours</dt><dd class="num">8,759</dd></div>
+      <div><dt>Zones</dt><dd class="num">262</dd></div>
+    </dl>
+    <p class="side__src">
+      <span class="side__dot" id="db-dot" aria-hidden="true"></span>
+      <span id="db-state">MongoDB · nyc_taxi</span>
+    </p>
+  </div>
+</nav>

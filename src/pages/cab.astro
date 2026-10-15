@@ -1,0 +1,225 @@
+---
+import Shell from '../layouts/Shell.astro';
+---
+
+<Shell
+  kicker="Cab insights"
+  title="When and how the city rides"
+  lede="Demand, geography and the economics of a trip, with the weather left out of the picture — this is the taxi side of the join on its own. Every panel answers a live MongoDB aggregation, so pinning August or a Monday in the top bar re-queries all of them at once."
+>
+  <div class="grid">
+    <div class="panel panel--wide">
+      <div class="panel__body"><div id="kpis" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Figure 1</span>
+        <h2 class="panel__h">The working week, hour by hour</h2>
+      </div>
+      <div class="panel__body"><div id="matrix" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Mean trips per hour in each weekday-and-hour cell. The two ridges are the commute peaks;
+        the flat middle is the working day. Click any cell to pin that weekday and hour into the
+        lens. The Friday and Saturday evening bands run later and wider than the rest of the week —
+        which is why so much of this city's night traffic sits in two rows.
+      </p>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 2</span>
+        <h2 class="panel__h">Hour of day</h2>
+      </div>
+      <div class="panel__body"><div id="hour" class="chart" data-state="loading"></div><div id="hour-lg"></div></div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 3</span>
+        <h2 class="panel__h">Day of week</h2>
+      </div>
+      <div class="panel__body"><div id="dow" class="chart" data-state="loading"></div><div id="dow-lg"></div></div>
+    </div>
+
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Figure 4</span>
+        <h2 class="panel__h">The economics of a trip, by hour</h2>
+      </div>
+      <div class="panel__body"><div id="econ" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Revenue per trip is remarkably flat across the clock while trip <em>volume</em> swings by a
+        factor of twelve. The late-night premium is real but small — a few dollars — which is the
+        first hint that the money in this dataset comes from <b>how many</b> trips, not how expensive
+        each one is.
+      </p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Figure 5</span>
+        <h2 class="panel__h">Concentration</h2>
+      </div>
+      <div class="panel__body"><div id="conc" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Figure 6</span>
+        <h2 class="panel__h">Boroughs</h2>
+      </div>
+      <div class="panel__body"><div id="borough" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Manhattan carries the volume and the cheapest average ride; the airports sit in Queens and
+        lift that borough's revenue per trip above the rest. Names and boroughs come from the
+        official TLC zone file, joined on <code>PULocationID</code>.
+      </p>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Table 1</span>
+        <h2 class="panel__h">Every zone that clears 20,000 trips</h2>
+      </div>
+      <div class="panel__body"><div id="ztable" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">Click a column heading to sort. Click a row to pin that zone.</p>
+    </div>
+  </div>
+
+  <script>
+    import { api, boot, lens, panelState, register, setLens } from '../scripts/app';
+    import {
+      MONTHS, barChart, barsH, compact, concentration as concChart, heatmap, int, legend, money, table,
+    } from '../scripts/charts';
+
+    const host = (id: string) => document.getElementById(id)!;
+    let sort = { key: 'trips', dir: -1 as 1 | -1 };
+
+    register(async () => {
+      const [sum, mat, hours, dows, borough] = await Promise.all([
+        api<any>('summary'),
+        api<number[][]>('cab/matrix'),
+        api<any[]>('cab/hour'),
+        api<any[]>('cab/dow'),
+        api<any[]>('cab/borough'),
+      ]);
+
+      const k = host('kpis');
+      const items = [
+        { label: 'Trips', value: int(sum.trips), note: `${int(sum.hours)} hours` },
+        { label: 'Revenue', value: money(sum.revenue), note: `${money(sum.revenuePerHour)} / hour` },
+        { label: 'Trips / hour', value: int(sum.tripsPerHour) },
+        { label: 'Revenue / trip', value: money(sum.revenuePerTrip, true) },
+        { label: 'Mean distance', value: `${sum.distance} mi` },
+        { label: 'Mean duration', value: `${sum.duration} min` },
+        { label: 'Passengers', value: String(sum.passengers) },
+        { label: 'Tip rate', value: `${sum.tipPct}%` },
+      ];
+      const dl = document.createElement('dl');
+      dl.className = 'kpis';
+      for (const it of items) {
+        const w = document.createElement('div');
+        w.className = 'kpi';
+        w.append(
+          Object.assign(document.createElement('dt'), { textContent: it.label }),
+          Object.assign(document.createElement('dd'), { className: 'num', textContent: it.value }),
+        );
+        if (it.note) w.append(Object.assign(document.createElement('p'), { className: 'kpi__note', textContent: it.note }));
+        dl.append(w);
+      }
+      k.innerHTML = '';
+      k.append(dl);
+      panelState(k, 'ready');
+
+      // hour x weekday heatmap
+      heatmap(host('matrix'), mat, {
+        rowLabels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        highlight: (d, h) => lens().dow === d && lens().hod === h,
+        onSelect: (d, h) => setLens({ dow: d, hod: h }),
+      });
+      panelState(host('matrix'), 'ready');
+
+      barChart(host('hour'), hours.map((h) => ({ key: h.key, label: String(h.key).padStart(2, '0'), value: h.tripsPerHour, value2: h.revenuePerHour })), {
+        height: 172, yLabel: 'trips/h', y2Label: 'rev/h',
+        highlight: (p) => lens().hod === p.key,
+        onSelect: (p) => setLens({ hod: lens().hod === p.key ? null : (p.key as number) }),
+      });
+      legend(host('hour-lg'), [
+        { swatch: 'bar', colour: 'var(--ink)', label: 'trips per hour' },
+        { swatch: 'line', colour: 'var(--rev)', label: 'revenue per hour' },
+      ]);
+      panelState(host('hour'), 'ready');
+
+      barChart(host('dow'), dows.map((d) => ({ key: d.key, label: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.key], value: d.tripsPerHour })), {
+        height: 172, yLabel: 'trips/h',
+        highlight: (p) => lens().dow === p.key,
+        onSelect: (p) => setLens({ dow: lens().dow === p.key ? null : (p.key as number) }),
+      });
+      legend(host('dow-lg'), [{ swatch: 'bar', colour: 'var(--ink)', label: 'mean trips per hour' }]);
+      panelState(host('dow'), 'ready');
+
+      // economics by hour: revenue/trip as bars, distance as overlaid line
+      const { compareSeries } = await import('../scripts/charts');
+      void compareSeries;
+      barChart(host('econ'), hours.map((h) => ({ key: h.key, label: String(h.key).padStart(2, '0'), value: h.revenuePerTrip, value2: h.distance })), {
+        height: 176, yLabel: '$ / trip', y2Label: 'miles', fmt: (v) => '$' + v.toFixed(0), fmt2: (v) => v.toFixed(1),
+      });
+      legend(host('econ'), []);
+      const lg = document.createElement('ul');
+      lg.className = 'legend';
+      lg.innerHTML =
+        '<li><span class="legend__sw legend__sw--bar" style="--sw:var(--ink)"></span><span>revenue per trip</span></li>' +
+        '<li><span class="legend__sw legend__sw--line" style="--sw:var(--rev)"></span><span>mean trip distance <i>right axis</i></span></li>';
+      host('econ').after(lg);
+      panelState(host('econ'), 'ready');
+
+      const conc = await api<{ points: { n: number; share: number }[] }>('cab/concentration');
+      concChart(host('conc'), conc.points, { height: 190 });
+      panelState(host('conc'), 'ready');
+
+      barsH(host('borough'), borough.map((b) => ({ key: b.borough, label: b.borough, value: b.trips, value2: b.amount })), {
+        rowH: 24, labelW: 96, fmt: compact,
+      });
+      const bg = document.createElement('ul');
+      bg.className = 'legend';
+      bg.innerHTML =
+        '<li><span class="legend__sw legend__sw--bar" style="--sw:var(--ink)"></span><span>trips</span></li>' +
+        '<li><span class="legend__sw legend__sw--ring" style="--sw:var(--rev)"></span><span>revenue per trip</span></li>';
+      host('borough').after(bg);
+      panelState(host('borough'), 'ready');
+    });
+
+    const ZONE_COLS = (sort: { key: string; dir: 1 | -1 }) => [
+      { key: 'id', label: 'Zone', align: 'left' as const, fmt: (_v: unknown, r: any) => r.name, cls: 'zname' },
+      { key: 'borough', label: 'Borough', align: 'left' as const },
+      { key: 'trips', label: 'Trips', bar: (r: any) => r.trips, sortable: true },
+      { key: 'revenue', label: 'Revenue', fmt: (v: unknown) => money(Number(v)), sortable: true },
+      { key: 'amount', label: '$ / trip', fmt: (v: unknown) => money(Number(v), true), sortable: true },
+      { key: 'distance', label: 'Mi', fmt: (v: unknown) => Number(v).toFixed(2), sortable: true },
+      { key: 'duration', label: 'Min', fmt: (v: unknown) => Number(v).toFixed(1), sortable: true },
+      { key: 'tipPct', label: 'Tip', fmt: (v: unknown) => Number(v).toFixed(1) + '%', sortable: true },
+    ];
+
+    async function drawZoneTable() {
+      const zones = await api<any[]>('zones', { limit: 200 });
+      const rows = zones.filter((z) => z.trips >= 20000);
+      const key = sort.key as 'trips' | 'revenue' | 'amount' | 'distance' | 'duration' | 'tipPct' | 'id';
+      rows.sort((a, b) => (a[key] - b[key]) * sort.dir);
+      table(host('ztable'), rows as unknown as Record<string, unknown>[], ZONE_COLS(sort), {
+        sort,
+        onSort: (k) => {
+          sort = { key: k, dir: sort.key === k ? ((sort.dir * -1) as 1 | -1) : -1 };
+          void drawZoneTable();
+        },
+        onRow: (r: any) => { location.href = `/zones?zone=${r.id}`; },
+        caption: 'Zones with at least 20,000 trips under the current lens. Click a heading to sort, a row to open the zone.',
+      });
+      panelState(host('ztable'), 'ready');
+    }
+
+    register(drawZoneTable);
+
+    boot(() => {});
+  </script>
+</Shell>

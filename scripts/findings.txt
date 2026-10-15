@@ -1,0 +1,341 @@
+YEAR TOTALS
+
+YEAR TOTALS
+-----------
+hours=8759  trips=34,938,284  revenue=$1,030,220,295
+mean trips/hour=3,989  median=4,522
+tip rate = $0.177 per $1 fare  (17.7%)
+revenue per trip = $29.49   per trip-hour $117,618
+
+SHAPE OF THE YEAR
+-----------------
+by month, trips:
+   1      3,772 /hr   rev $  104,260/hr
+   2      3,941 /hr   rev $  107,659/hr
+   3      4,130 /hr   rev $  117,498/hr
+   4      4,232 /hr   rev $  121,843/hr
+   5      4,273 /hr   rev $  128,890/hr
+   6      4,027 /hr   rev $  121,213/hr
+   7      3,580 /hr   rev $  106,620/hr
+   8      3,361 /hr   rev $  101,328/hr
+   9      4,134 /hr   rev $  126,489/hr
+  10      4,337 /hr   rev $  131,836/hr
+  11      4,151 /hr   rev $  123,619/hr
+  12      3,944 /hr   rev $  119,937/hr
+by hour of day, mean trips:
+  00      2,463  ####################
+  01      1,588  #############
+  02      1,015  ########
+  03        650  #####
+  04        443  ###
+  05        543  ####
+  06      1,212  ##########
+  07      2,444  ####################
+  08      3,423  ############################
+  09      4,058  #################################
+  10      4,514  #####################################
+  11      4,881  ########################################
+  12      5,294  ############################################
+  13      5,526  ##############################################
+  14      5,928  #################################################
+  15      6,134  ###################################################
+  16      6,266  ####################################################
+  17      6,736  ########################################################
+  18      6,880  #########################################################
+  19      6,067  ##################################################
+  20      5,563  ##############################################
+  21      5,589  ##############################################
+  22      4,912  ########################################
+  23      3,594  #############################
+by weekday, mean trips:
+  Mon      3,577
+  Tue      4,093
+  Wed      4,280
+  Thu      4,381
+  Fri      4,136
+  Sat      4,056
+  Sun      3,393
+peak hour = 2025-05-08 18:00:00  9,746 trips
+trough    = 2025-04-15 03:00:00  103 trips
+peak/trough ratio = 94.62x
+
+WEATHER EXPOSURE
+----------------
+wet hours (precip>0): 1,209 of 8,759  (13.8%)
+  of those, snowfall>0: 135
+  mean precip on wet hours = 0.92 mm, p95 = 3.60
+dry hours precip=0 by construction; max prcp overall = 19.8 mm
+
+weather code profile:
+  code label              hrs  trips/hr  rev/trip   dist    dur   tip%
+     0 Clear             2843     3,685     29.52   4.02   16.3  17.4%
+     1 Mainly clear       865     4,100     29.63   3.89   16.5  17.8%
+     2 Partly cloudy      633     4,097     29.46   3.87   16.4  17.7%
+     3 Overcast          3209     4,064     29.47   3.92   16.4  17.8%
+    51 Light drizzle      595     4,575     29.59   3.77   17.1  18.2%
+    53 Drizzle            187     4,434     29.42   3.78   16.9  18.1%
+    55 Dense drizzle       63     4,503     29.22   3.68   16.8  18.4%
+    61 Light rain         120     4,524     29.55   3.82   17.0  18.3%
+    63 Rain                96     3,846     29.94   4.12   17.5  17.8%
+    65 Heavy rain          13     4,861     29.65   4.09   18.1  17.9%
+    71 Light snow          62     3,905     28.31   3.83   15.7  17.9%
+    73 Snow                58     3,081     26.72   3.54   14.8  18.1%
+    75 Heavy snow          15     3,293     25.75   2.81   14.8  19.3%
+
+WET vs DRY, CONTROLLED INSIDE (month x hour-of-day) CELLS
+---------------------------------------------------------
+cells compared = 224 (each needing >=3 wet and >=3 dry hours)
+trip-weighted mean wet/dry ratio = 0.9965  (-0.3%)
+unweighted mean ratio = 1.0142   median = 1.0039
+cells where wet > dry: 114 / 224  (51%)
+ratio p05=0.632 p95=1.426
+NAIVE (uncontrolled) wet/dry ratio = 1.1118
+  ^ the naive figure is confounded; the controlled one above is the claim
+
+log(trips) ~ 23 hour dummies + 11 month dummies + weekend + precip + snowfall
+  R2 = 0.829
+  precip  coef = +0.01575 (se 0.00686)  t = +2.3   => +1 mm/h: +1.59% trips/hour
+  snowfall coef = -0.22026 (se 0.06913)  t = -3.2   => +1 cm/h: -19.77% trips/hour
+  R2 without weather = 0.828   -> weather adds 0.0003 of variance
+
+SNOW, CONTROLLED
+----------------
+snowing vs fully dry, within (month x hour) cells, cells=71
+  trip-weighted ratio = 0.9522  (-4.8%)
+  cells where snow < dry: 45/71
+raw code comparison (uncontrolled): snow hours 3,081/hr vs overcast 4,064/hr = 0.758
+snow hours n=135  mean snowfall 0.36 cm
+
+WEATHER AND ECONOMICS (same controlled comparison, per-trip metrics)
+--------------------------------------------------------------------
+  fare             wet/dry = 1.0043  (+0.4%)   raw = 0.9882
+  amount           wet/dry = 1.0036  (+0.4%)   raw = 0.9936
+  trip distance    wet/dry = 0.9969  (-0.3%)   raw = 0.9575
+  tip              wet/dry = 1.0144  (+1.4%)   raw = 1.0157
+  duration min     wet/dry = 1.0106  (+1.1%)   raw = 1.0291
+  passengers       wet/dry = 0.9988  (-0.1%)   raw = 1.0007
+
+ZONE REDISTRIBUTION UNDER WET HOURS
+-----------------------------------
+Weather is one citywide reading shared by all 262 zones in an hour, so a
+zone's share shifting cannot be an exposure artifact: it is compositional.
+wet codes = [51, 53, 55, 61, 63, 65, 71, 73, 75]  (9 of 13)
+
+zones with >=20,000 annual trips: 64 of 262
+
+GAINERS — share of wet-hour trips vs share of dry-hour trips:
+   zone      trips  share dry  share wet   index     Δpp
+    230  1,218,620    3.4642%    3.6211%   1.045  +0.157
+    237  1,829,977    5.2140%    5.3709%   1.030  +0.157
+    142  1,122,473    3.1908%    3.3359%   1.045  +0.145
+    163  1,034,185    2.9400%    3.0726%   1.045  +0.133
+    161  1,733,350    4.9412%    5.0735%   1.027  +0.132
+    236  1,546,594    4.4100%    4.5204%   1.025  +0.110
+    239    927,424    2.6397%    2.7376%   1.037  +0.098
+    162  1,289,305    3.6760%    3.7701%   1.026  +0.094
+    170  1,006,514    2.8696%    2.9439%   1.026  +0.074
+    140    698,985    1.9906%    2.0570%   1.033  +0.066
+     68    948,574    2.7050%    2.7711%   1.024  +0.066
+    234    980,000    2.7972%    2.8486%   1.018  +0.051
+
+LOSERS:
+    249    746,321    2.1586%    2.0095%   0.931  -0.149
+    132  1,845,326    5.2995%    5.1816%   0.978  -0.118
+    148    350,354    1.0205%    0.9034%   0.885  -0.117
+     79    758,081    2.1869%    2.0737%   0.948  -0.113
+    138  1,205,563    3.4658%    3.3651%   0.971  -0.101
+    114    496,445    1.4348%    1.3430%   0.936  -0.092
+    144    352,074    1.0162%    0.9599%   0.945  -0.056
+    262    439,258    1.2656%    1.2106%   0.957  -0.055
+     48    860,615    2.4692%    2.4296%   0.984  -0.040
+    100    540,877    1.5534%    1.5182%   0.977  -0.035
+    238    630,274    1.8092%    1.7743%   0.981  -0.035
+    158    314,820    0.9062%    0.8721%   0.962  -0.034
+
+index across the 64 qualifying zones: 0.828 to 1.045, median 0.988
+share-point spread: -0.149pp to +0.157pp
+sanity: sum of share-point changes = -0.00pp (must be ~0)
+
+REVENUE share-point change (wet vs dry hours), same filter:
+  zone  154  +0.1569pp   revenue $17,143
+  zone    8  +0.1568pp   revenue $13,296
+  zone  123  +0.1451pp   revenue $129,130
+  zone   81  +0.1326pp   revenue $137,538
+  zone  108  +0.1324pp   revenue $125,292
+  zone   96  +0.1104pp   revenue $8,942
+  zone  221  -0.1491pp   revenue $1,420
+  zone  155  -0.1179pp   revenue $174,040
+  zone  127  -0.1171pp   revenue $125,139
+  zone   35  -0.1131pp   revenue $431,190
+  zone  134  -0.1006pp   revenue $289,661
+  zone  112  -0.0918pp   revenue $186,924
+  ^ revenue share moves less than trip share: rain changes WHERE, not HOW MUCH people spend
+
+SNOW-ONLY redistribution (snowfall>0 hours vs fully dry):
+  snow codes [71, 73, 75]; their share of all trips = 1.3457%
+  gainer zone   79  index 1.275  (758,081 trips)
+  gainer zone    4  index 1.231  (44,206 trips)
+  gainer zone  230  index 1.221  (1,218,620 trips)
+  gainer zone  114  index 1.219  (496,445 trips)
+  gainer zone  264  index 1.198  (70,917 trips)
+  loser  zone  138  index 0.696  (1,205,563 trips)
+  loser  zone   70  index 0.730  (119,147 trips)
+  loser  zone   13  index 0.793  (203,269 trips)
+  loser  zone   76  index 0.795  (21,948 trips)
+  loser  zone  226  index 0.798  (26,956 trips)
+
+IS THE REDISTRIBUTION REAL? SIGNIFICANCE
+----------------------------------------
+two-proportion z-test, 64 qualifying zones, wet-share vs dry-share
+  p < 0.05            : 53 of 64
+  p < 0.05 Bonferroni (alpha=0.00078): 40 of 64
+  median |z| among qualifying zones = 5.58
+  zone |z| > 3 (conventionally 'real'): 43
+  NOTE: wet hours are 13.8% of the year, so these share shifts are small in
+  absolute terms. Read the effect size, not the p-value.
+
+LONG-HAUL vs SHORT-HAUL ZONES UNDER WET HOURS (aggregate, high power)
+---------------------------------------------------------------------
+long-haul zones (mean trip > 8 mi): 4 zones, 3,191,984 trips (9.1%)
+short-haul zones (mean trip <= 4 mi): 49 zones, 29,978,112 trips (85.8%)
+  long-haul  share of wet-hour trips 8.9290%  share of dry-hour trips 9.1729%
+  short-haul share of wet-hour trips 86.3360%  share of dry-hour trips 85.7082%
+  long-haul share ratio wet/dry = 0.9663   z = -24.70  p = 9.86e-135
+  => in wet hours the airport-corridor zones carry -3.37% of their dry-hour relative weight
+  zones 132 and 138 individually (the two long-haul zones):
+    zone 132: share 5.2995% dry -> 5.1816% wet  index 0.978  z = -11.16  p = 0.000
+    zone 138: share 3.4658% dry -> 3.3651% wet  index 0.971  z = -11.67  p = 0.000
+
+RAIN AT RUSH HOUR vs RAIN OFF-PEAK
+----------------------------------
+  peak commute 07-10 & 16-19   wet/dry = 1.0112 (+1.1%)   cells=74
+  off-peak 11-15               wet/dry = 1.0144 (+1.4%)   cells=52
+  overnight 00-05              wet/dry = 1.0747 (+7.5%)   cells=52
+
+TEMPERATURE RESPONSE (residualised on month x hour)
+---------------------------------------------------
+      band C   hrs   resid vs model  trips/hr
+     -99..-5   335           -0.016     2,802
+       -5..0   993           +0.011     3,672
+        0..5  1209           -0.038     3,616
+       5..10  1097           +0.041     4,210
+      10..15  1150           -0.026     4,137
+      15..20  1458           +0.006     3,606
+      20..25  1336           +0.020     4,103
+      25..30   849           -0.020     4,821
+      30..99   332           -0.015     5,340
+
+ECONOMICS
+---------
+fare per trip        $20.84
+revenue per trip     $29.49
+trips per $1 revenue 0.0339
+mean trip distance   3.93 mi
+mean duration        16.4 min
+mean passengers      1.30
+tip per trip         $3.69  (17.7% of fare)
+
+revenue per hour by month:
+   1  $   104,260
+   2  $   107,659
+   3  $   117,498
+   4  $   121,843
+   5  $   128,890
+   6  $   121,213
+   7  $   106,620
+   8  $   101,328
+   9  $   126,489
+  10  $   131,836
+  11  $   123,619
+  12  $   119,937
+
+revenue per trip-hour by hour of day:
+  00  $  76,336
+  01  $  44,648
+  02  $  26,337
+  03  $  17,341
+  04  $  15,069
+  05  $  21,138
+  06  $  38,835
+  07  $  68,968
+  08  $  92,080
+  09  $ 110,249
+  10  $ 124,914
+  11  $ 136,740
+  12  $ 153,021
+  13  $ 160,799
+  14  $ 181,103
+  15  $ 185,790
+  16  $ 202,624
+  17  $ 206,650
+  18  $ 199,935
+  19  $ 177,730
+  20  $ 160,918
+  21  $ 162,215
+  22  $ 146,758
+  23  $ 112,396
+
+ZONE ECONOMICS
+--------------
+top 12 zones by revenue:
+   zone      trips        revenue   $/trip   dist    dur  peak h
+    132  1,845,326    151,663,584    82.19  15.66   44.1      16
+    138  1,205,563     84,951,992    70.47   9.66   31.2      14
+    161  1,733,350     45,511,829    26.26   2.30   15.5      18
+    237  1,829,977     38,457,351    21.02   1.73   12.0      15
+    230  1,218,620     35,503,402    29.13   3.00   16.8      21
+    186  1,330,930     34,470,781    25.90   2.27   16.5      17
+    236  1,546,594     32,722,644    21.16   1.89   12.0      15
+    162  1,289,305     32,463,110    25.18   2.26   14.8      18
+    163  1,034,185     26,654,612    25.77   2.37   15.1      18
+    142  1,122,473     25,244,336    22.49   2.11   12.7      21
+     68    948,574     25,118,853    26.48   2.47   16.4      18
+    170  1,006,514     24,844,351    24.68   2.24   14.4      18
+
+top 10 zones = 40.5% of all trips
+top 50 zones = 95.9%
+bottom 100 zones = 0.3%
+
+highest revenue-per-trip zones (>=20,000 annual trips):
+    132  $  82.19/trip   dist 15.66  dur  44.1  trips 1,845,326
+    138  $  70.47/trip   dist  9.66  dur  31.2  trips 1,205,563
+     70  $  67.86/trip   dist  9.56  dur  30.7  trips   119,147
+    226  $  54.51/trip   dist  6.24  dur  24.6  trips    26,956
+     76  $  36.20/trip   dist  8.13  dur  48.0  trips    21,948
+     88  $  34.44/trip   dist  4.73  dur  21.0  trips   101,578
+     13  $  33.63/trip   dist  4.37  dur  18.5  trips   203,269
+    261  $  33.39/trip   dist  4.17  dur  20.5  trips   174,202
+     87  $  32.81/trip   dist  4.29  dur  19.1  trips   188,066
+    264  $  31.93/trip   dist  4.01  dur  17.9  trips    70,917
+
+long-haul zones (mean trip distance > 8 mi, >=20k trips):
+  count = 4   trips = 3,191,984  (9.1% of all)
+  revenue = $245,495,845  (23.8% of all)
+  zone  132  trips  1,845,326  $  82.19/trip  dist 15.66  dur  44.1
+  zone  138  trips  1,205,563  $  70.47/trip  dist  9.66  dur  31.2
+  zone   70  trips    119,147  $  67.86/trip  dist  9.56  dur  30.7
+  zone   76  trips     21,948  $  36.20/trip  dist  8.13  dur  48.0
+  citywide for comparison: $29.49/trip, dist 3.93 mi
+
+OTHER WEATHER AXES (controlled)
+-------------------------------
+  cloud cover %  top-quartile vs bottom-quartile trips ratio = 1.0361 (+3.6%)  cells=288
+  wind km/h      top-quartile vs bottom-quartile trips ratio = 1.0083 (+0.8%)  cells=288
+  humidity %     top-quartile vs bottom-quartile trips ratio = 1.0561 (+5.6%)  cells=288
+
+WHAT THE FOUR HEADLINE NUMBERS ARE
+----------------------------------
+1. controlled rain effect on trips   = -0.3%   (naive would say +11.2%)
+2. controlled snow effect on trips   = -4.8%   (n=135 snow hours)
+3. long-haul zones' share of trips   = 9.1% of trips, 23.8% of revenue
+4. peak-to-trough demand             = 95x  (9,746 vs 103 trips/hour)
+   peak-to-trough revenue per hour   = 331x
+
+HEAVY RAIN, CONTROLLED (does the story change above a threshold?)
+-----------------------------------------------------------------
+  >=  1.0 mm/h  hours= 315  controlled=1.0357 (+3.6%)  naive=1.0733 (+7.3%)  cells=86  cells below 1: 40/86
+  >=  2.0 mm/h  hours= 150  controlled=1.0179 (+1.8%)  naive=1.0359 (+3.6%)  cells=29  cells below 1: 14/29
+  >=  2.5 mm/h  hours= 113  controlled=0.9705 (-3.0%)  naive=1.0075 (+0.8%)  cells=18  cells below 1: 11/18
+  >=  4.0 mm/h  hours=  53  controlled=0.9621 (-3.8%)  naive=1.0830 (+8.3%)  cells=4  cells below 1: 3/4
+
+wrote src/data/findings.json and public/data/findings.json

@@ -1,0 +1,269 @@
+---
+import Shell from '../layouts/Shell.astro';
+---
+
+<Shell
+  kicker="Weather insights"
+  title="What the sky actually did"
+  lede="Before asking what weather does to taxi demand, it is worth knowing what weather New York actually had in 2025. Thirteen WMO conditions appear in this extract and no others; the distributions below are the raw weather side of the join, straight out of the hourly collection."
+>
+  <div class="grid">
+    <div class="panel panel--wide">
+      <div class="panel__body"><div id="kpis" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Figure 1</span>
+        <h2 class="panel__h">How often each sky occurred</h2>
+      </div>
+      <div class="panel__body"><div id="codes" class="chart" data-state="loading"></div><div id="codes-lg"></div></div>
+      <p class="panel__note">
+        Hours per condition, with the mean trips per hour overlaid. Overcast is the single most common
+        sky of the year by a wide margin, and it is the fair comparison for a snow hour — which is why
+        the snow figures elsewhere on this dashboard are quoted against overcast rather than against
+        "clear".
+      </p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Figure 2</span>
+        <h2 class="panel__h">Dry, rain or snow</h2>
+      </div>
+      <div class="panel__body"><div id="kinds" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">Every hour of 2025 classified. Rain and drizzle together are the second-largest group; snow is rare.</p>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 3</span>
+        <h2 class="panel__h">Temperature</h2>
+      </div>
+      <div class="panel__body"><div id="temphist" class="chart" data-state="loading"></div></div>
+      <p class="panel__note" id="tempnote"></p>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 4</span>
+        <h2 class="panel__h">Hourly precipitation</h2>
+      </div>
+      <div class="panel__body"><div id="prcphist" class="chart" data-state="loading"></div></div>
+      <p class="panel__note" id="prcpnote"></p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Figure 5</span>
+        <h2 class="panel__h">Wind</h2>
+      </div>
+      <div class="panel__body"><div id="windhist" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Figure 6</span>
+        <h2 class="panel__h">Humidity</h2>
+      </div>
+      <div class="panel__body"><div id="humhist" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Figure 7</span>
+        <h2 class="panel__h">Cloud cover</h2>
+      </div>
+      <div class="panel__body"><div id="cloudhist" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Figure 8</span>
+        <h2 class="panel__h">The weather calendar: what each month actually delivered</h2>
+      </div>
+      <div class="panel__body"><div id="season" class="chart" data-state="loading"></div><div id="season-lg"></div></div>
+      <p class="panel__note">
+        Bars are the share of the month's hours that were dry, wet or snowing, drawn against the
+        month's mean temperature. It makes the winter obvious: snow only appears in the cold months,
+        which is exactly the confound you have to remove before you can attribute anything to snow.
+      </p>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Table 1</span>
+        <h2 class="panel__h">Every condition, and what it does to a trip</h2>
+      </div>
+      <div class="panel__body"><div id="econ" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Fill colour marks the condition family — ink for dry skies, rain-blue for rain and drizzle,
+        frost for snow. The trips-per-hour column is the honest one: it is where the weather is
+        visible. The money columns barely move.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    import { api, boot, panelState, register } from '../scripts/app';
+    import { barChart, histogram, int, legend, money, one, table } from '../scripts/charts';
+
+    const host = (id: string) => document.getElementById(id)!;
+
+    register(async () => {
+      const [vars, codes, kinds, season, econ] = await Promise.all([
+        api<any[]>('weather/vars'),
+        api<any[]>('weather/code'),
+        api<any[]>('weather/kind'),
+        api<any[]>('weather/season'),
+        api<any[]>('weather/economics'),
+      ]);
+
+      // ---- KPI strip computed from the hourly series, so it counts hours not zone-rows
+      const n = vars.length;
+      const wet = vars.filter((v) => v.kind !== 'dry').length;
+      const snow = vars.filter((v) => v.kind === 'snow').length;
+      const prcpTotal = vars.reduce((a, v) => a + v.precip, 0);
+      const temps = vars.map((v) => v.temp);
+      const overcast = codes.find((c) => c.code === 3)?.hours ?? 0;
+      const items = [
+        { label: 'Recorded hours', value: int(n), note: '2025, one DST hour missing' },
+        { label: 'Dry hours', value: int(n - wet), note: `${(((n - wet) / n) * 100).toFixed(1)}% of the year` },
+        { label: 'Wet hours', value: int(wet), note: `${((wet / n) * 100).toFixed(1)}% · rain or drizzle or snow` },
+        { label: 'Snowing hours', value: int(snow), note: `${((snow / n) * 100).toFixed(2)}% — the rarest condition` },
+        { label: 'Temperature', value: `${Math.round(Math.min(...temps))} to ${Math.round(Math.max(...temps))} °C`, note: `mean ${one(temps.reduce((a, b) => a + b, 0) / n)} °C` },
+        { label: 'Precipitation', value: one(prcpTotal) + ' mm', note: 'summed over the year' },
+        { label: 'Overcast hours', value: int(overcast), note: 'the modal sky of 2025' },
+        { label: 'Conditions seen', value: String(codes.length), note: 'no thunder, no fog in this extract' },
+      ];
+      const dl = document.createElement('dl');
+      dl.className = 'kpis';
+      for (const it of items) {
+        const w = document.createElement('div');
+        w.className = 'kpi';
+        w.append(
+          Object.assign(document.createElement('dt'), { textContent: it.label }),
+          Object.assign(document.createElement('dd'), { className: 'num', textContent: it.value }),
+          Object.assign(document.createElement('p'), { className: 'kpi__note', textContent: it.note }),
+        );
+        dl.append(w);
+      }
+      host('kpis').innerHTML = '';
+      host('kpis').append(dl);
+      panelState(host('kpis'), 'ready');
+
+      // ---- hours per condition, with trips/hour as the second series
+      const order = [...codes].sort((a, b) => b.hours - a.hours);
+      barChart(host('codes'), order.map((c) => ({
+        key: c.code, label: c.label, value: c.hours,
+        colour: c.kind === 'snow' ? 'var(--frost)' : c.kind === 'rain' ? 'var(--rain)' : 'var(--ink)',
+        value2: c.tripsPerHour,
+      })), { height: 190, yLabel: 'hours', y2Label: 'trips/h', fmt: (v) => int(v), fmt2: (v) => int(v) });
+      legend(host('codes-lg'), [
+        { swatch: 'bar', colour: 'var(--ink)', label: 'hours in the year' },
+        { swatch: 'line', colour: 'var(--rev)', label: 'mean trips per hour', note: 'right axis' },
+      ]);
+      panelState(host('codes'), 'ready');
+
+      // ---- kind split
+      const kindColour: Record<string, string> = { dry: 'var(--ink)', rain: 'var(--rain)', snow: 'var(--frost)' };
+      barChart(host('kinds'), kinds.map((k) => ({
+        key: k.key, label: k.key, value: k.hours, colour: kindColour[k.key] ?? 'var(--ink)',
+      })), { height: 190, yLabel: 'hours', fmt: (v) => int(v) });
+      panelState(host('kinds'), 'ready');
+
+      // ---- distributions
+      histogram(host('temphist'), vars.map((v) => v.temp), { bins: 26, height: 150, lo: -18, hi: 41, label: '°C' });
+      host('tempnote').textContent = `Distribution of hourly temperature across the ${int(n)} recorded hours. Most of the year sits between −5 and 30 °C; the extremes are what a small number of hours look like.`;
+      panelState(host('temphist'), 'ready');
+
+      const prcps = vars.map((v) => v.precip).filter((p) => p > 0);
+      histogram(host('prcphist'), prcps.map((p) => Math.min(p, 8)), {
+        bins: 24, height: 150, lo: 0, hi: 8, label: 'mm/h, wet hours only', colour: 'var(--rain)',
+      });
+      const light = vars.filter((v) => v.precip > 0 && v.precip < 1).length;
+      const mod = vars.filter((v) => v.precip >= 1 && v.precip < 4).length;
+      const heavy = vars.filter((v) => v.precip >= 4).length;
+      host('prcpnote').innerHTML = `Wet hours split <b>${int(light)}</b> light (&lt;1 mm), <b>${int(mod)}</b> moderate (1–4 mm) and <b>${int(heavy)}</b> heavy (≥4 mm). The distribution is heavily skewed — most wet hours are barely wet, which is why a naive "rain vs dry" average washes out.`;
+      panelState(host('prcphist'), 'ready');
+
+      histogram(host('windhist'), vars.map((v) => v.wind), { bins: 20, height: 150, label: 'km/h' });
+      panelState(host('windhist'), 'ready');
+      histogram(host('humhist'), vars.map((v) => v.humidity), { bins: 20, height: 150, lo: 0, hi: 100, label: '%' });
+      panelState(host('humhist'), 'ready');
+      histogram(host('cloudhist'), vars.map((v) => v.cloud), { bins: 20, height: 150, lo: 0, hi: 100, label: '%' });
+      panelState(host('cloudhist'), 'ready');
+
+      // ---- weather calendar: stacked shares + temperature line
+      const seasonHost = host('season');
+      const { s, frame, scale, ticks, tick, mount, linePath, niceMax } = await import('../scripts/charts');
+      const W = Math.max(320, Math.floor(seasonHost.clientWidth || 640));
+      const H = 240;
+      const mL = 44, mR = 52, mT = 18, mB = 40;
+      const iw = W - mL - mR, ih = H - mT - mB;
+      const svg = s('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, height: H, role: 'img' });
+      const bw = iw / 12;
+      for (const t of [0, 25, 50, 75, 100]) {
+        svg.append(s('line', { x1: mL, x2: mL + iw, y1: mT + ih - (t / 100) * ih, y2: mT + ih - (t / 100) * ih, stroke: 'var(--rule)', 'stroke-width': 1 }));
+        svg.append(tick(mL - 7, mT + ih - (t / 100) * ih + 3.5, t + '%', 'end'));
+      }
+      const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      season.forEach((m, i) => {
+        const tot = Math.max(1, m.hours);
+        const frac = [m.snowHours / tot, (wetCount(vars, m.mon) - m.snowHours) / tot, (tot - wetCount(vars, m.mon)) / tot];
+        const cols = ['var(--frost)', 'var(--rain)', 'var(--ink)'];
+        let acc = 0;
+        frac.forEach((f, j) => {
+          const h = f * ih;
+          svg.append(s('rect', {
+            x: mL + i * bw + bw * 0.12, y: mT + ih - acc - h, width: bw * 0.76, height: Math.max(0, h),
+            fill: cols[j], 'fill-opacity': j === 2 ? 0.2 : 0.8,
+          }));
+          acc += h;
+        });
+        svg.append(tick(mL + i * bw + bw / 2, H - 20, MN[i], 'middle', 9.5));
+        svg.append(tick(mL + i * bw + bw / 2, H - 7, Math.round(m.temp) + '°', 'middle', 9));
+      });
+      // temperature line on the right
+      const tLo = Math.min(...season.map((m) => m.temp)), tHi = Math.max(...season.map((m) => m.temp));
+      const yT = scale(tLo - 2, tHi + 2, mT + ih, mT);
+      const tp: number[] = [];
+      season.forEach((m, i) => tp.push(mL + i * bw + bw / 2, yT(m.temp)));
+      svg.append(s('path', { d: linePath(tp), fill: 'none', stroke: 'var(--rev)', 'stroke-width': 1.7 }));
+      for (const t of ticks(tLo, tHi, 2)) svg.append(tick(W - mR + 6, yT(t) + 3.5, Math.round(t) + '°', 'start', 9));
+      svg.append(s('line', { x1: mL, x2: mL + iw, y1: mT + ih, y2: mT + ih, stroke: 'var(--rule-ink)', 'stroke-width': 1 }));
+      svg.append(s('text', { x: mL - 7, y: mT - 5, 'text-anchor': 'end', 'font-size': 9, fill: 'var(--ink-3)' }, ['share of hours']));
+      mount(seasonHost, svg);
+      legend(host('season-lg'), [
+        { swatch: 'bar', colour: 'var(--ink)', label: 'dry' },
+        { swatch: 'bar', colour: 'var(--rain)', label: 'rain / drizzle' },
+        { swatch: 'bar', colour: 'var(--frost)', label: 'snow' },
+        { swatch: 'line', colour: 'var(--rev)', label: 'mean temperature', note: 'right axis' },
+      ]);
+      panelState(seasonHost, 'ready');
+
+      // ---- condition economics table
+      table(host('econ'), [...econ].sort((a, b) => b.tripsPerHour - a.tripsPerHour) as unknown as Record<string, unknown>[], [
+        { key: 'label', label: 'Condition', align: 'left', fmt: (_v, r: any) => r.label, cls: 'zname' },
+        { key: 'code', label: 'Code' },
+        { key: 'kind', label: 'Family', align: 'left', fmt: (v) => String(v) },
+        { key: 'hours', label: 'Hours', fmt: (v) => int(Number(v)) },
+        { key: 'trips', label: 'Trips', fmt: (v) => int(Number(v)) },
+        { key: 'tripsPerHour', label: 'Trips / h', bar: (r: any) => r.tripsPerHour, fmt: (v) => int(Number(v)) },
+        { key: 'amount', label: '$ / trip', fmt: (v) => money(Number(v), true) },
+        { key: 'fare', label: 'Fare', fmt: (v) => money(Number(v), true) },
+        { key: 'tipPct', label: 'Tip', fmt: (v) => Number(v).toFixed(1) + '%' },
+        { key: 'distance', label: 'Mi', fmt: (v) => Number(v).toFixed(2) },
+        { key: 'duration', label: 'Min', fmt: (v) => Number(v).toFixed(1) },
+      ], { caption: 'Every weather condition in the extract with its hours and economics.' });
+      panelState(host('econ'), 'ready');
+    });
+
+    /** Wet = rain or snow. Counted from the hourly series so it is hours, not rows. */
+    function wetCount(vars: any[], mon: number) {
+      return vars.filter((v) => v.mon === mon && v.kind !== 'dry').length;
+    }
+
+    boot(() => {});
+  </script>
+</Shell>

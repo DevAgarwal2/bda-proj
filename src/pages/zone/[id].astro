@@ -1,0 +1,237 @@
+---
+import Shell from '../../layouts/Shell.astro';
+export const prerender = false;
+const id = Number(Astro.params.id);
+const zone = Number.isFinite(id) ? id : null;
+---
+
+<Shell
+  kicker={zone != null ? `Zone ${zone}` : 'Zone'}
+  title="Zone profile"
+  lede="Everything the extract holds about one pickup zone: its origin and destination marginals across the clock, its economics, the weather it experienced and how its share moved when it rained. Values respond to the lens in the top bar."
+>
+  <div class="grid">
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Location</span>
+        <h2 class="panel__h" id="zname">Loading…</h2>
+      </div>
+      <div class="panel__body">
+        <div id="map" class="chart" data-state="loading"></div>
+      </div>
+      <p class="panel__note" id="mapnote"></p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">This zone</span>
+        <h2 class="panel__h">Under the current lens</h2>
+      </div>
+      <div class="panel__body"><div id="facts" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__body"><div id="kpis" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 1</span>
+        <h2 class="panel__h">Origin and destination over the clock</h2>
+      </div>
+      <div class="panel__body"><div id="flow" class="chart" data-state="loading"></div><div id="flow-lg"></div></div>
+      <p class="panel__note" id="flownote"></p>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 2</span>
+        <h2 class="panel__h">Weather split</h2>
+      </div>
+      <div class="panel__body"><div id="kinds" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Trips that started here, split by the sky at the time. Compare with the citywide mix: a zone
+        whose share moves between dry and wet hours is one the city treats differently when it rains.
+      </p>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Figure 3</span>
+        <h2 class="panel__h">How this zone compares with the city</h2>
+      </div>
+      <div class="panel__body"><div id="peers" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        The zone's figures against the citywide average and against the median zone that clears the
+        volume floor. Every figure is trip-weighted, so the comparison is like for like.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    import { api, boot, lensQuery, panelState, register } from '../../scripts/app';
+    import { barsH, compact, el, int, legend, money, table } from '../../scripts/charts';
+    import { buildMap, mapControls } from '../../scripts/map';
+
+    const ZONE = Number(location.pathname.split('/').filter(Boolean).pop());
+    const host = (id: string) => document.getElementById(id)!;
+
+    register(async () => {
+      const [d, sum, cityFlow, flowZones] = await Promise.all([
+        api<any>(`zone/${ZONE}`, {}),
+        api<any>('summary'),
+        api<any[]>('flow/hour'),
+        api<any[]>('flow/zones'),
+      ]);
+      document.title = `${d.zone.name} · NYC Taxi × Weather`;
+      host('zname').textContent = d.zone.name;
+
+      const f = d.filtered;
+      const net = f?.net ?? 0;
+      const rows: [string, string][] = [
+        ['PULocationID', String(d.zone.id)],
+        ['Borough', d.zone.borough],
+        ['Mapped', d.zone.mapped ? 'yes — TLC boundary present' : 'no — unassigned in the TLC file'],
+        ['Peak hour', String(d.zone.peakHour).padStart(2, '0') + ':00'],
+        ['Peak weekday', ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.zone.peakDow]],
+        ['Annual trips', int(d.zone.trips)],
+        ['Annual revenue', money(d.zone.revenue)],
+        ['Everything, $ / trip', money(d.zone.amount, true)],
+        ['Everything, miles', d.zone.distance.toFixed(2)],
+      ];
+      const tbl = document.createElement('table');
+      tbl.className = 'dtable';
+      for (const [a, b] of rows) {
+        const tr = document.createElement('tr');
+        tr.append(Object.assign(document.createElement('td'), { textContent: a, className: 'zname' }),
+                  Object.assign(document.createElement('td'), { textContent: b, className: 'num' }));
+        tbl.append(tr);
+      }
+      host('facts').innerHTML = '';
+      host('facts').append(tbl);
+      panelState(host('facts'), 'ready');
+
+      const items = [
+        { label: 'Pickups', value: f ? int(f.trips) : '—', note: 'under the current lens' },
+        { label: 'Dropoffs', value: f ? int(f.dropoffs) : '—', note: 'trips that ended here' },
+        { label: 'Net flow', value: f ? (net >= 0 ? '+' : '−') + int(Math.abs(net)) : '—', note: net >= 0 ? 'emits riders' : 'absorbs riders' },
+        { label: 'Revenue', value: f ? money(f.revenue) : '—' },
+        { label: '$ / trip', value: f ? money(f.amount, true) : '—' },
+        { label: 'Distance', value: f ? f.distance.toFixed(2) + ' mi' : '—' },
+        { label: 'Duration', value: f ? f.duration + ' min' : '—' },
+        { label: 'Tip', value: f ? f.tipPct + '%' : '—' },
+      ];
+      const dl = document.createElement('dl');
+      dl.className = 'kpis';
+      for (const it of items) {
+        const w = document.createElement('div');
+        w.className = 'kpi';
+        w.append(
+          Object.assign(document.createElement('dt'), { textContent: it.label }),
+          Object.assign(document.createElement('dd'), { className: 'num', textContent: it.value }),
+          Object.assign(document.createElement('p'), { className: 'kpi__note', textContent: it.note ?? '' }),
+        );
+        dl.append(w);
+      }
+      host('kpis').innerHTML = '';
+      host('kpis').append(dl);
+      panelState(host('kpis'), 'ready');
+
+      // ---- map, zoomed to this zone
+      const m = await buildMap(host('map'), { onSelect: () => {}, getName: () => d.zone.name });
+      const vals = new Map(flowZones.map((z) => [z.id, z.pickups]));
+      m.setMetric('trips', vals);
+      m.select(ZONE);
+      m.zoomTo(ZONE);
+      mapControls(host('map').parentElement as HTMLElement, m);
+      host('mapnote').innerHTML = d.zone.mapped
+        ? `The official TLC boundary for zone ${d.zone.id}, against the rest of the city for context.`
+        : `Zone ${d.zone.id} has no boundary in the official TLC file — it is one of the unassigned IDs — so the map shows the surrounding zones instead.`;
+      panelState(host('map'), 'ready');
+
+      // ---- the zone's own flow, against the city
+      const fh = d.flow as any[];
+      const { s, scale, ticks, tick, mount } = await import('../../scripts/charts');
+      const cH = host('flow');
+      const W = Math.max(300, Math.floor(cH.clientWidth || 640));
+      const H = 224;
+      const svg = s('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, height: H, role: 'img' });
+      const mL = 48, mR = 14, mT = 16, mB = 30;
+      const iw = W - mL - mR, ih = H - mT - mB;
+      const hi = Math.max(...fh.map((h) => Math.max(h.pickups, h.dropoffs)), 1);
+      const y = scale(0, hi, mT + ih, mT);
+      const x = scale(0, 23, mL, mL + iw);
+      for (const t of ticks(0, hi, 4)) {
+        svg.append(s('line', { x1: mL, x2: mL + iw, y1: y(t), y2: y(t), stroke: 'var(--rule)', 'stroke-width': 1 }));
+        svg.append(tick(mL - 7, y(t) + 3.5, compact(t), 'end'));
+      }
+      fh.forEach((h) => {
+        svg.append(s('rect', {
+          x: x(h.hod) - iw / 24 / 2, y: mT, width: iw / 24, height: ih,
+          fill: h.net >= 0 ? 'var(--alert)' : 'var(--rain)', 'fill-opacity': 0.06,
+        }));
+      });
+      for (const [key, col, dash] of [['pickups', 'var(--ink)', ''], ['dropoffs', 'var(--rain)', '4 3']] as [string, string, string][]) {
+        let dpath = '';
+        fh.forEach((v, i) => { dpath += (i ? 'L' : 'M') + x(v.hod).toFixed(1) + ' ' + y((v as any)[key]).toFixed(1); });
+        svg.append(s('path', { d: dpath, fill: 'none', stroke: col, 'stroke-width': 1.8, 'stroke-dasharray': dash }));
+      }
+      svg.append(s('line', { x1: mL, x2: mL + iw, y1: mT + ih, y2: mT + ih, stroke: 'var(--rule-ink)', 'stroke-width': 1 }));
+      for (let h = 0; h < 24; h += 2) svg.append(tick(x(h), mT + ih + 14, String(h).padStart(2, '0'), 'middle', 9));
+      mount(cH, svg);
+      legend(host('flow-lg'), [
+        { swatch: 'line', colour: 'var(--ink)', label: 'pickups' },
+        { swatch: 'line', colour: 'var(--rain)', label: 'dropoffs' },
+        { swatch: 'bar', colour: 'var(--rule-strong)', label: 'red = net emission, blue = net absorption' },
+      ]);
+      const peakNet = fh.reduce((a, b) => (Math.abs(b.net) > Math.abs(a.net) ? b : a), fh[0]);
+      host('flownote').innerHTML =
+        `The widest gap between the two curves is at <b>${String(peakNet.hod).padStart(2, '0')}:00</b>, where the zone ` +
+        (peakNet.net >= 0 ? 'sends out' : 'takes in') + ` <b>${int(Math.abs(peakNet.net))}</b> more trips than it ` +
+        (peakNet.net >= 0 ? 'receives' : 'sends out') + ` across the year.`;
+      panelState(cH, 'ready');
+      void cityFlow;
+
+      // ---- weather split, against the city mix
+      const KC: Record<string, string> = { dry: 'var(--ink)', rain: 'var(--rain)', snow: 'var(--frost)' };
+      const zoneTot = (d.bykind as any[]).reduce((a: number, k: any) => a + k.trips, 0) || 1;
+      const cityMix = await api<any[]>('weather/kind');
+      const cityTot = (cityMix as any[]).reduce((a: number, k: any) => a + k.trips, 0) || 1;
+      const mixRows = ['dry', 'rain', 'snow'].map((k) => {
+        const zk = (d.bykind as any[]).find((x: any) => x.kind === k);
+        const ck = (cityMix as any[]).find((x: any) => x.key === k);
+        return { kind: k, zoneShare: (100 * (zk?.trips ?? 0)) / zoneTot, cityShare: (100 * (ck?.trips ?? 0)) / cityTot };
+      });
+      barsH(host('kinds'), mixRows.flatMap((r) => ([
+        { key: `${r.kind}-z`, label: `${r.kind} · this zone`, value: r.zoneShare },
+        { key: `${r.kind}-c`, label: `${r.kind} · citywide`, value: r.cityShare },
+      ])), {
+        rowH: 22, labelW: 132, fmt: (v) => v.toFixed(1) + '%',
+        colour: (p) => KC[String(p.key).split('-')[0]] ?? 'var(--ink)',
+      });
+      panelState(host('kinds'), 'ready');
+
+      // ---- peers
+      const qual = (flowZones as any[]).filter((z) => z.pickups + z.dropoffs >= 20000);
+      const med = (arr: number[]) => { const a = [...arr].sort((p: number, q: number) => p - q); return a[Math.floor(a.length / 2)] ?? 0; };
+      const peerRows = [
+        { metric: 'Pickups', zone: f?.trips ?? 0, city: sum.trips / 262, median: med(qual.map((z: any) => z.pickups)) },
+        { metric: 'Dropoffs', zone: f?.dropoffs ?? 0, city: sum.dropoffs / 262, median: med(qual.map((z: any) => z.dropoffs)) },
+        { metric: 'Net flow', zone: net, city: (sum.trips - sum.dropoffs) / 262, median: med(qual.map((z: any) => z.net)) },
+        { metric: 'Revenue', zone: f?.revenue ?? 0, city: sum.revenue / 262, median: med(qual.map((z: any) => z.revenue)) },
+        { metric: '$ / trip', zone: f?.amount ?? 0, city: sum.revenuePerTrip, median: med(qual.map((z: any) => 0)) },
+        { metric: 'Miles', zone: f?.distance ?? 0, city: sum.distance, median: 0 },
+      ];
+      table(host('peers'), peerRows as unknown as Record<string, unknown>[], [
+        { key: 'metric', label: 'Metric', align: 'left', cls: 'zname' },
+        { key: 'zone', label: 'This zone', bar: (r: any) => Math.abs(r.zone), fmt: (v: unknown) => compact(Number(v)) },
+        { key: 'city', label: 'Citywide mean', fmt: (v: unknown) => compact(Number(v)) },
+        { key: 'median', label: 'Median zone', fmt: (v: unknown) => compact(Number(v)) },
+      ], { caption: 'This zone against the citywide mean and the median qualifying zone.' });
+      panelState(host('peers'), 'ready');
+      void lensQuery; void el;
+    });
+
+    boot(() => {});
+  </script>
+</Shell>
