@@ -1,0 +1,247 @@
+---
+import Shell from '../layouts/Shell.astro';
+---
+
+<Shell
+  kicker="Forecast"
+  title="The next seven days, with error bars on the claim"
+  lede="A ridge regression on log hourly demand learns the shape of the week, the season and the weather, then forecasts the first seven days of 2026. It is judged the only way a forecast should be judged: on 56 days it never saw, against the seasonal-naive rule any operator already has for free."
+>
+  <div class="grid">
+    <div class="panel panel--wide">
+      <div class="panel__body"><div id="kpis" class="chart" data-state="loading"></div></div>
+    </div>
+
+    <div class="panel panel--two3">
+      <div class="panel__head">
+        <span class="fig-label">Figure 1</span>
+        <h2 class="panel__h">Backtest: 56 days the model never saw</h2>
+      </div>
+      <div class="panel__body"><div id="backtest" class="chart" data-state="loading"></div><div id="backtest-lg"></div></div>
+      <p class="panel__note" id="backtest-note"></p>
+    </div>
+
+    <div class="panel panel--third">
+      <div class="panel__head">
+        <span class="fig-label">Method</span>
+        <h2 class="panel__h">What the model is, and is not</h2>
+      </div>
+      <div class="panel__body">
+        <div class="prose">
+          <p>
+            Target: <b>citywide trips per hour</b>, modelled as
+            <code>log1p(trips)</code>. Features: cyclical hour, weekday and
+            day-of-year; a weekend flag; temperature, precipitation, snow,
+            humidity, wind and cloud; and three lag terms — the same hour
+            yesterday, the same hour last week, and the trailing 24-hour mean.
+          </p>
+          <p>
+            The split is strictly temporal: train on 1 Jan – 5 Nov, test on
+            6 Nov – 31 Dec. The baseline is the <b>seasonal-naive</b> forecast
+            (same hour, same weekday, previous week) — the number the model has
+            to beat to be useful.
+          </p>
+          <p>
+            It predicts <b>volume, not revenue or zone</b>. Weather for the
+            future week is unknown, so it is held at the last 30-day mean; that
+            is a stated assumption, not a hidden one.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Figure 2</span>
+        <h2 class="panel__h">Forecast: 1–7 January 2026</h2>
+      </div>
+      <div class="panel__body"><div id="next7" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Daily totals, summed from the hourly forecast. New Year's week is the
+        first week of the year with no observed weather, so the forecast carries
+        the late-December weather average and the same weekday's demand from the
+        previous week.
+      </p>
+    </div>
+
+    <div class="panel panel--half">
+      <div class="panel__head">
+        <span class="fig-label">Table 1</span>
+        <h2 class="panel__h">Does it earn its place?</h2>
+      </div>
+      <div class="panel__body"><div id="metrics" class="chart" data-state="loading"></div></div>
+      <p class="panel__note">
+        Model against the seasonal-naive baseline on the same held-out hours.
+        Lower MAE, RMSE and MAPE are better; higher R² is better.
+      </p>
+    </div>
+
+    <div class="panel panel--wide">
+      <div class="panel__head">
+        <span class="fig-label">Figure 3</span>
+        <h2 class="panel__h">The last observed week, hour by hour</h2>
+      </div>
+      <div class="panel__body"><div id="recent" class="chart" data-state="loading"></div><div id="recent-lg"></div></div>
+      <p class="panel__note">
+        The same predictions as Figure 1, at hourly resolution over the final
+        week of the test window. The model tracks the commute peaks; the
+        remaining error is mostly weather the calendar cannot anticipate.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    import { api, boot, panelState, register } from '../scripts/app';
+    import {
+      s, frame, mount, scale, niceMax, ticks, tick, linePath,
+      barChart, table, kpiStrip, legend, compact, int,
+    } from '../scripts/charts';
+
+    interface BacktestRow { date: string; actual: number; predicted: number; baseline: number }
+    interface RecentRow { t: string; actual: number; predicted: number }
+    interface Forecast {
+      model: {
+        name: string; alpha: number; target: string; features: string[];
+        trainRows: number; testRows: number; testStart: string; testEnd: string;
+        metrics: {
+          model: { mae: number; rmse: number; mape: number; r2: number };
+          baseline: { mae: number; rmse: number; mape: number; r2: number };
+          improvementPct: number;
+        };
+      };
+      backtest: BacktestRow[];
+      recent: RecentRow[];
+      next7: { t: string; trips: number }[];
+      next7Daily: { date: string; dow: number; trips: number }[];
+    }
+
+    const host = (id: string) => document.getElementById(id)!;
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const day = (iso: string) => {
+      const d = new Date(iso.slice(0, 10) + 'T00:00:00');
+      return `${MON[d.getMonth()]} ${d.getDate()}`;
+    };
+
+    function lineChart(
+      el: HTMLElement,
+      labels: string[],
+      series: { values: number[]; colour: string; dash?: string; width?: number }[],
+      opts: { height?: number; every?: number; yLabel?: string; fmt?: (v: number) => string } = {},
+    ) {
+      const H = opts.height ?? 250;
+      const { svg, W } = frame(el, H);
+      const mL = 52, mR = 14, mT = 18, mB = 30;
+      const iw = W - mL - mR, ih = H - mT - mB;
+      const all = series.flatMap((sr) => sr.values).filter(Number.isFinite);
+      const max = niceMax(Math.max(...all, 1));
+      const y = scale(0, max, mT + ih, mT);
+      const n = labels.length;
+      const x = n > 1 ? scale(0, n - 1, mL, mL + iw) : () => mL + iw / 2;
+      const fmt = opts.fmt ?? compact;
+
+      for (const t of ticks(0, max, 4)) {
+        svg.append(s('line', { x1: mL, x2: mL + iw, y1: y(t), y2: y(t), stroke: 'var(--rule)', 'stroke-width': 1 }));
+        svg.append(tick(mL - 7, y(t) + 3.5, fmt(t), 'end'));
+      }
+      const every = opts.every ?? Math.max(1, Math.ceil(n / 8));
+      labels.forEach((l, i) => {
+        if (i % every === 0 || i === n - 1) svg.append(tick(x(i), mT + ih + 14, l, 'middle', 9.5));
+      });
+      for (const sr of series) {
+        const pts: number[] = [];
+        sr.values.forEach((v, i) => pts.push(x(i), y(v)));
+        svg.append(s('path', {
+          d: linePath(pts), fill: 'none', stroke: sr.colour,
+          'stroke-width': sr.width ?? 1.8, 'stroke-dasharray': sr.dash,
+        }));
+      }
+      svg.append(s('line', { x1: mL, x2: mL + iw, y1: mT + ih, y2: mT + ih, stroke: 'var(--rule-ink)', 'stroke-width': 1 }));
+      if (opts.yLabel) {
+        svg.append(s('text', { x: mL - 7, y: mT - 9, 'text-anchor': 'end', 'font-size': 9, fill: 'var(--ink-3)' }, [opts.yLabel]));
+      }
+      mount(el, svg);
+    }
+
+    register(async () => {
+      const f = await api<Forecast>('forecast');
+      const m = f.model.metrics;
+
+      kpiStrip(host('kpis'), [
+        { label: 'Model', value: 'Ridge', note: 'log1p(trips) target' },
+        { label: 'MAE', value: int(m.model.mae), note: 'trips per hour, held-out' },
+        { label: 'Baseline MAE', value: int(m.baseline.mae), note: 'seasonal naive' },
+        { label: 'Improvement', value: `${m.improvementPct > 0 ? '+' : ''}${m.improvementPct}%`, note: 'lower error than baseline', colour: m.improvementPct > 0 ? 'var(--ink)' : 'var(--alert)' },
+        { label: 'R²', value: m.model.r2.toFixed(3), note: `baseline ${m.baseline.r2.toFixed(3)}` },
+        { label: 'MAPE', value: `${m.model.mape}%`, note: `baseline ${m.baseline.mape}%` },
+        { label: 'Test window', value: `${f.model.testRows} h`, note: `${f.model.testStart} → ${f.model.testEnd}` },
+        { label: 'Horizon', value: '7 days', note: '1–7 Jan 2026' },
+      ]);
+      panelState(host('kpis'), 'ready');
+
+      // ---- Figure 1: daily backtest
+      lineChart(
+        host('backtest'),
+        f.backtest.map((r) => day(r.date)),
+        [
+          { values: f.backtest.map((r) => r.actual), colour: 'var(--ink)' },
+          { values: f.backtest.map((r) => r.predicted), colour: 'var(--rain)' },
+          { values: f.backtest.map((r) => r.baseline), colour: 'var(--rule-strong)', dash: '4 3', width: 1.2 },
+        ],
+        { height: 260, every: 7, yLabel: 'trips/day' },
+      );
+      legend(host('backtest-lg'), [
+        { swatch: 'line', colour: 'var(--ink)', label: 'actual' },
+        { swatch: 'line', colour: 'var(--rain)', label: 'model forecast' },
+        { swatch: 'line', colour: 'var(--rule-strong)', label: 'seasonal-naive baseline' },
+      ]);
+      host('backtest-note').innerHTML =
+        `Trained on <b>${int(f.model.trainRows)}</b> hours and tested on <b>${int(f.model.testRows)}</b> it never saw. ` +
+        `The model cuts MAE from <b>${int(m.baseline.mae)}</b> to <b>${int(m.model.mae)}</b> trips/hour — ` +
+        `<b>${m.improvementPct > 0 ? '+' : ''}${m.improvementPct}%</b> against the seasonal-naive rule. ` +
+        `The two lines diverging in the last week is New Year's, when the previous week stops being a good guide.`;
+      panelState(host('backtest'), 'ready');
+
+      // ---- Figure 2: next seven days
+      barChart(
+        host('next7'),
+        f.next7Daily.map((d) => ({ key: d.date, label: DOW[d.dow], value: d.trips })),
+        { height: 240, yLabel: 'trips/day', fmt: (v) => compact(v) },
+      );
+      panelState(host('next7'), 'ready');
+
+      // ---- Table 1: metrics
+      const rows = [
+        { metric: 'MAE', model: int(m.model.mae), baseline: int(m.baseline.mae), note: 'trips/hour' },
+        { metric: 'RMSE', model: int(m.model.rmse), baseline: int(m.baseline.rmse), note: 'large misses' },
+        { metric: 'MAPE', model: `${m.model.mape}%`, baseline: `${m.baseline.mape}%`, note: 'percent' },
+        { metric: 'R²', model: m.model.r2.toFixed(3), baseline: m.baseline.r2.toFixed(3), note: 'variance' },
+      ];
+      table(host('metrics'), rows, [
+        { key: 'metric', label: 'Metric', align: 'left', cls: 'zname' },
+        { key: 'model', label: 'Model', align: 'right' },
+        { key: 'baseline', label: 'Baseline', align: 'right' },
+        { key: 'note', label: 'Note', align: 'left' },
+      ], { caption: 'Forecast model against seasonal-naive baseline on the held-out 56 days.' });
+      panelState(host('metrics'), 'ready');
+
+      // ---- Figure 3: last week, hourly
+      lineChart(
+        host('recent'),
+        f.recent.map((r) => day(r.t)),
+        [
+          { values: f.recent.map((r) => r.actual), colour: 'var(--ink)' },
+          { values: f.recent.map((r) => r.predicted), colour: 'var(--rain)' },
+        ],
+        { height: 240, every: 24, yLabel: 'trips/h' },
+      );
+      legend(host('recent-lg'), [
+        { swatch: 'line', colour: 'var(--ink)', label: 'actual' },
+        { swatch: 'line', colour: 'var(--rain)', label: 'predicted' },
+      ]);
+      panelState(host('recent'), 'ready');
+    });
+
+    boot(() => {});
+  </script>
+</Shell>

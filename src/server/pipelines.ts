@@ -10,6 +10,7 @@
  * roughly the mean number of active zones (about 112).
  */
 import { col, cached } from './db';
+import forecastData from '../data/forecast.json';
 
 export interface Filter {
   mon: number | null;
@@ -733,6 +734,12 @@ export function zoneDetail(id: number, f: Filter) {
       } : null,
     };
   });
+}
+
+/** Model output from scripts/forecast.py: out-of-sample backtest, the next seven
+ *  days, and the metrics that say whether the model earns its place. */
+export function forecast() {
+  return forecastData;
 }
 
 /** Provenance and index inventory for the method page. */

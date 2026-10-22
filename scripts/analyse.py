@@ -46,11 +46,22 @@ def rule(t):
     say("\n" + t)
     say("-" * len(t))
 
+
+def wmean(v, t):
+    """Trip-weighted mean: sum(value * trips) / sum(trips).
+
+    The project's rule for every citywide or multi-zone average of a per-trip
+    metric. Averaging per-(hour, zone) means naively over-weights quiet hours.
+    """
+    return float((np.asarray(v, np.float64) * np.asarray(t, np.float64)).sum()
+                 / np.asarray(t, np.float64).sum())
+
+
 say("YEAR TOTALS")
 rule("YEAR TOTALS")
 say(f"hours={N}  trips={T.sum():,.0f}  revenue=${R.sum():,.0f}")
 say(f"mean trips/hour={T.mean():,.0f}  median={np.median(T):,.0f}")
-say(f"tip rate = ${TIP.sum()/FARE.sum():.3f} per $1 fare  ({100*TIP.sum()/FARE.sum():.1f}%)")
+say(f"tip rate = ${wmean(TIP,T)/wmean(FARE,T):.3f} per $1 fare  ({100*wmean(TIP,T)/wmean(FARE,T):.1f}%)")
 say(f"revenue per trip = ${R.sum()/T.sum():.2f}   per trip-hour ${R.sum()/N:,.0f}")
 
 rule("SHAPE OF THE YEAR")
@@ -88,8 +99,8 @@ base = T[~WET].mean()
 for cd in codes:
     m = WX == cd
     say(f"  {cd:>4} {LBL.get(cd,'?'):<16} {m.sum():>5} {T[m].mean():9,.0f} "
-        f"{R[m].sum()/T[m].sum():9.2f} {DIST[m][T[m]>0].mean():6.2f} "
-        f"{DUR[m][T[m]>0].mean():6.1f} {100*TIP[m].sum()/FARE[m].sum():5.1f}%")
+        f"{R[m].sum()/T[m].sum():9.2f} {wmean(DIST[m], T[m]):6.2f} "
+        f"{wmean(DUR[m], T[m]):6.1f} {100*wmean(TIP[m], T[m])/wmean(FARE[m], T[m]):5.1f}%")
 
 rule("WET vs DRY, CONTROLLED INSIDE (month x hour-of-day) CELLS")
 cell = MON * 24 + HOD
@@ -164,15 +175,17 @@ for name, v in [("fare", FARE), ("amount", R / T), ("trip distance", DIST),
     rr, ww = [], []
     for cc in np.unique(cell):
         m = cell == cc
-        a, b_ = v[m & WET], v[m & ~WET]
-        if len(a) >= 3 and len(b_) >= 3:
-            rr.append(a.mean() / b_.mean()); ww.append(len(a) + len(b_))
+        wet, dry = m & WET, m & ~WET
+        if wet.sum() >= 3 and dry.sum() >= 3:
+            rr.append(wmean(v[wet], T[wet]) / wmean(v[dry], T[dry]))
+            ww.append(T[wet].sum() + T[dry].sum())
     rr = np.array(rr); ww = np.array(ww, np.float64)
     est = (rr * ww).sum() / ww.sum()
+    raw = wmean(v[WET], T[WET]) / wmean(v[~WET], T[~WET])
     ECON[name] = {"controlled": round(float(est), 4),
-                  "raw": round(float(v[WET].mean() / v[~WET].mean()), 4),
+                  "raw": round(float(raw), 4),
                   "pct": round(float(100 * (est - 1)), 2)}
-    say(f"  {name:<16} wet/dry = {est:.4f}  ({100*(est-1):+.1f}%)   raw = {v[WET].mean()/v[~WET].mean():.4f}")
+    say(f"  {name:<16} wet/dry = {est:.4f}  ({100*(est-1):+.1f}%)   raw = {raw:.4f}")
 
 rule("ZONE REDISTRIBUTION UNDER WET HOURS")
 say("Weather is one citywide reading shared by all 262 zones in an hour, so a")
@@ -311,13 +324,13 @@ for lo, hi in bands:
         f"{resid[m].mean():+16.3f} {T[m].mean():9,.0f}")
 
 rule("ECONOMICS")
-say(f"fare per trip        ${FARE[T>0].mean():.2f}")
+say(f"fare per trip        ${wmean(FARE,T):.2f}")
 say(f"revenue per trip     ${R.sum()/T.sum():.2f}")
 say(f"trips per $1 revenue {T.sum()/R.sum():.4f}")
-say(f"mean trip distance   {DIST[T>0].mean():.2f} mi")
-say(f"mean duration        {DUR[T>0].mean():.1f} min")
-say(f"mean passengers      {PAX[T>0].mean():.2f}")
-say(f"tip per trip         ${TIP[T>0].mean():.2f}  ({100*TIP.sum()/FARE.sum():.1f}% of fare)")
+say(f"mean trip distance   {wmean(DIST,T):.2f} mi")
+say(f"mean duration        {wmean(DUR,T):.1f} min")
+say(f"mean passengers      {wmean(PAX,T):.2f}")
+say(f"tip per trip         ${wmean(TIP,T):.2f}  ({100*wmean(TIP,T)/wmean(FARE,T):.1f}% of fare)")
 say("\nrevenue per hour by month:")
 for m in range(1, 13):
     n = (MON == m).sum(); say(f"  {m:2d}  ${R[MON==m].sum()/n:10,.0f}")
@@ -348,7 +361,7 @@ say(f"  count = {len(lh)}   trips = {sum(r['trips'] for r in lh):,}  "
 say(f"  revenue = ${sum(r['revenue'] for r in lh):,}  ({100*sum(r['revenue'] for r in lh)/sum(r['revenue'] for r in rows):.1f}% of all)")
 for r in lh:
     say(f"  zone {r['id']:>4}  trips {r['trips']:>10,}  ${r['amount']:7.2f}/trip  dist {r['dist']:5.2f}  dur {r['dur']:5.1f}")
-say(f"  citywide for comparison: ${R.sum()/T.sum():.2f}/trip, dist {DIST[T>0].mean():.2f} mi")
+say(f"  citywide for comparison: ${R.sum()/T.sum():.2f}/trip, dist {wmean(DIST,T):.2f} mi")
 
 rule("OTHER WEATHER AXES (controlled)")
 for name, v in [("cloud cover %", CLOUD), ("wind km/h", WIND), ("humidity %", HUM)]:
@@ -423,9 +436,9 @@ for cd in codes:
         "code": int(cd), "label": LBL.get(cd, "?"), "hours": int(m.sum()),
         "tripsPerHour": round(float(T[m].mean()), 1),
         "amountPerTrip": round(float(R[m].sum() / T[m].sum()), 2),
-        "dist": round(float(DIST[m][T[m] > 0].mean()), 2),
-        "dur": round(float(DUR[m][T[m] > 0].mean()), 1),
-        "tipPct": round(float(100 * TIP[m].sum() / FARE[m].sum()), 2),
+        "dist": round(wmean(DIST[m], T[m]), 2),
+        "dur": round(wmean(DUR[m], T[m]), 1),
+        "tipPct": round(100 * wmean(TIP[m], T[m]) / wmean(FARE[m], T[m]), 2),
         "tripShare": round(float(T[m].sum() / T.sum()), 5),
     })
 
@@ -436,12 +449,12 @@ findings = {
         "trips": int(T.sum()), "revenue": int(round(R.sum())),
         "tripsPerHour": round(float(T.mean()), 1),
         "revenuePerTrip": round(float(R.sum() / T.sum()), 2),
-        "farePerTrip": round(float(FARE[T > 0].mean()), 2),
-        "tipPerTrip": round(float(TIP[T > 0].mean()), 2),
-        "tipPct": round(float(100 * TIP.sum() / FARE.sum()), 1),
-        "distMi": round(float(DIST[T > 0].mean()), 2),
-        "durMin": round(float(DUR[T > 0].mean()), 1),
-        "pax": round(float(PAX[T > 0].mean()), 2),
+        "farePerTrip": round(wmean(FARE, T), 2),
+        "tipPerTrip": round(wmean(TIP, T), 2),
+        "tipPct": round(100 * wmean(TIP, T) / wmean(FARE, T), 1),
+        "distMi": round(wmean(DIST, T), 2),
+        "durMin": round(wmean(DUR, T), 1),
+        "pax": round(wmean(PAX, T), 2),
         "peakTrips": int(T.max()), "troughTrips": int(T.min()),
         "peakTs": str(full[int(T.argmax())]), "troughTs": str(full[int(T.argmin())]),
         "peakRatio": round(float(T.max() / T.min()), 1),

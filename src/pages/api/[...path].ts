@@ -3,7 +3,7 @@ import {
   parseFilter, summary, byHour, byDow, byMonth, byCode, byKind, hourDowMatrix, zoneTable,
   rainEffect, codeEconomics, zoneShift, tempResponse, concentration, seasonality,
   weatherDistributions, byBorough, zonesNear, meta, citywideSeries,
-  flowByZone, flowByHour,
+  flowByZone, flowByHour, forecast,
 } from '../../server/pipelines';
 
 export const prerender = false;
@@ -49,6 +49,7 @@ export const GET: APIRoute = async ({ url, params }) => {
         case 'zones': return zoneTable(f, Math.min(300, num('limit', 200)));
         case 'zones/near':
           return zonesNear(num('lng', -73.9857), num('lat', 40.7484), num('km', 2), num('limit', 20));
+        case 'forecast': return forecast();
         case 'meta': return meta();
         default: return null;
       }

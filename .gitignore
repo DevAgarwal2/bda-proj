@@ -16,3 +16,10 @@ nyc_taxi_weather_hourly.csv
 
 # Generated data snapshots written by the pipeline
 public/data/
+
+# Output of the distributed (Hadoop + Spark) stages, checked against src/data
+build/
+
+# Python bytecode
+__pycache__/
+*.pyc

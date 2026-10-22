@@ -12,7 +12,11 @@ web
 - **MongoDB** at `mongodb://127.0.0.1:27017`, database `nyc_taxi`. The user already runs mongod locally, so this needed no new infrastructure.
 - Charts are **hand-drawn SVG with no chart library**, so the visual system is fully controlled.
 - The map is an inline SVG choropleth built from the official TLC zone GeoJSON, so it works offline with no tile service.
-- Loader: `scripts/load_mongo.py` (Python + pymongo, run from `.venv`).`
+- Loader: `scripts/load_mongo.py` (Python + pymongo, run from `.venv`).
+- The ingestion and analysis stages also ship a **distributed implementation**
+  (HDFS + Hadoop Streaming MapReduce + PySpark) under `scripts/distributed/`. It
+  reproduces the same `src/data/*.json` payloads and is checked against the pandas
+  build with `npm run data:verify`.
 
 ## Users
 

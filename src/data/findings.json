@@ -8,11 +8,11 @@
   "revenue": 1030220295,
   "tripsPerHour": 3988.8,
   "revenuePerTrip": 29.49,
-  "farePerTrip": 20.84,
-  "tipPerTrip": 3.69,
-  "tipPct": 17.7,
-  "distMi": 3.93,
-  "durMin": 16.4,
+  "farePerTrip": 19.72,
+  "tipPerTrip": 3.71,
+  "tipPct": 18.8,
+  "distMi": 3.44,
+  "durMin": 17.1,
   "pax": 1.3,
   "peakTrips": 9746,
   "troughTrips": 103,
@@ -76,34 +76,34 @@
   ],
   "econ": {
    "fare": {
-    "controlled": 1.0043,
-    "raw": 0.9882,
-    "pct": 0.43
+    "controlled": 0.998,
+    "raw": 0.9947,
+    "pct": -0.2
    },
    "amount": {
-    "controlled": 1.0036,
-    "raw": 0.9936,
-    "pct": 0.36
+    "controlled": 0.9957,
+    "raw": 0.9955,
+    "pct": -0.43
    },
    "trip distance": {
-    "controlled": 0.9969,
-    "raw": 0.9575,
-    "pct": -0.31
+    "controlled": 0.9889,
+    "raw": 0.9687,
+    "pct": -1.11
    },
    "tip": {
-    "controlled": 1.0144,
-    "raw": 1.0157,
-    "pct": 1.44
+    "controlled": 0.9997,
+    "raw": 1.0033,
+    "pct": -0.03
    },
    "duration min": {
-    "controlled": 1.0106,
-    "raw": 1.0291,
-    "pct": 1.06
+    "controlled": 1.007,
+    "raw": 1.0252,
+    "pct": 0.7
    },
    "passengers": {
-    "controlled": 0.9988,
-    "raw": 1.0007,
-    "pct": -0.12
+    "controlled": 0.9993,
+    "raw": 0.9991,
+    "pct": -0.07
    }
   }
  },
@@ -379,9 +379,9 @@
    "hours": 2843,
    "tripsPerHour": 3684.8,
    "amountPerTrip": 29.52,
-   "dist": 4.02,
-   "dur": 16.3,
-   "tipPct": 17.45,
+   "dist": 3.48,
+   "dur": 16.9,
+   "tipPct": 18.67,
    "tripShare": 0.29984
   },
   {
@@ -390,9 +390,9 @@
    "hours": 865,
    "tripsPerHour": 4100.5,
    "amountPerTrip": 29.63,
-   "dist": 3.89,
-   "dur": 16.5,
-   "tipPct": 17.82,
+   "dist": 3.47,
+   "dur": 17.1,
+   "tipPct": 18.78,
    "tripShare": 0.10152
   },
   {
@@ -401,9 +401,9 @@
    "hours": 633,
    "tripsPerHour": 4097.3,
    "amountPerTrip": 29.46,
-   "dist": 3.87,
-   "dur": 16.4,
-   "tipPct": 17.65,
+   "dist": 3.41,
+   "dur": 17.1,
+   "tipPct": 18.62,
    "tripShare": 0.07423
   },
   {
@@ -412,9 +412,9 @@
    "hours": 3209,
    "tripsPerHour": 4064.1,
    "amountPerTrip": 29.47,
-   "dist": 3.92,
-   "dur": 16.4,
-   "tipPct": 17.81,
+   "dist": 3.43,
+   "dur": 17.0,
+   "tipPct": 18.9,
    "tripShare": 0.37328
   },
   {
@@ -423,9 +423,9 @@
    "hours": 595,
    "tripsPerHour": 4574.8,
    "amountPerTrip": 29.59,
-   "dist": 3.77,
-   "dur": 17.1,
-   "tipPct": 18.2,
+   "dist": 3.38,
+   "dur": 17.6,
+   "tipPct": 18.94,
    "tripShare": 0.07791
   },
   {
@@ -434,9 +434,9 @@
    "hours": 187,
    "tripsPerHour": 4433.6,
    "amountPerTrip": 29.42,
-   "dist": 3.78,
-   "dur": 16.9,
-   "tipPct": 18.06,
+   "dist": 3.37,
+   "dur": 17.6,
+   "tipPct": 18.79,
    "tripShare": 0.02373
   },
   {
@@ -445,9 +445,9 @@
    "hours": 63,
    "tripsPerHour": 4502.8,
    "amountPerTrip": 29.22,
-   "dist": 3.68,
-   "dur": 16.8,
-   "tipPct": 18.36,
+   "dist": 3.3,
+   "dur": 17.3,
+   "tipPct": 19.01,
    "tripShare": 0.00812
   },
   {
@@ -456,9 +456,9 @@
    "hours": 120,
    "tripsPerHour": 4524.1,
    "amountPerTrip": 29.55,
-   "dist": 3.82,
-   "dur": 17.0,
-   "tipPct": 18.32,
+   "dist": 3.36,
+   "dur": 17.4,
+   "tipPct": 18.91,
    "tripShare": 0.01554
   },
   {
@@ -467,9 +467,9 @@
    "hours": 96,
    "tripsPerHour": 3845.9,
    "amountPerTrip": 29.94,
-   "dist": 4.12,
-   "dur": 17.5,
-   "tipPct": 17.77,
+   "dist": 3.39,
+   "dur": 18.4,
+   "tipPct": 18.7,
    "tripShare": 0.01057
   },
   {
@@ -478,9 +478,9 @@
    "hours": 13,
    "tripsPerHour": 4860.7,
    "amountPerTrip": 29.65,
-   "dist": 4.09,
-   "dur": 18.1,
-   "tipPct": 17.94,
+   "dist": 3.12,
+   "dur": 17.8,
+   "tipPct": 19.85,
    "tripShare": 0.00181
   },
   {
@@ -489,9 +489,9 @@
    "hours": 62,
    "tripsPerHour": 3904.5,
    "amountPerTrip": 28.31,
-   "dist": 3.83,
-   "dur": 15.7,
-   "tipPct": 17.92,
+   "dist": 3.18,
+   "dur": 15.9,
+   "tipPct": 19.67,
    "tripShare": 0.00693
   },
   {
@@ -500,9 +500,9 @@
    "hours": 58,
    "tripsPerHour": 3080.7,
    "amountPerTrip": 26.72,
-   "dist": 3.54,
-   "dur": 14.8,
-   "tipPct": 18.06,
+   "dist": 3.1,
+   "dur": 15.1,
+   "tipPct": 18.81,
    "tripShare": 0.00511
   },
   {
@@ -511,9 +511,9 @@
    "hours": 15,
    "tripsPerHour": 3292.5,
    "amountPerTrip": 25.75,
-   "dist": 2.81,
-   "dur": 14.8,
-   "tipPct": 19.32,
+   "dist": 2.75,
+   "dur": 15.2,
+   "tipPct": 19.6,
    "tripShare": 0.00141
   }
  ],

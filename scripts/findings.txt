@@ -4,7 +4,7 @@ YEAR TOTALS
 -----------
 hours=8759  trips=34,938,284  revenue=$1,030,220,295
 mean trips/hour=3,989  median=4,522
-tip rate = $0.177 per $1 fare  (17.7%)
+tip rate = $0.188 per $1 fare  (18.8%)
 revenue per trip = $29.49   per trip-hour $117,618
 
 SHAPE OF THE YEAR
@@ -68,19 +68,19 @@ dry hours precip=0 by construction; max prcp overall = 19.8 mm
 
 weather code profile:
   code label              hrs  trips/hr  rev/trip   dist    dur   tip%
-     0 Clear             2843     3,685     29.52   4.02   16.3  17.4%
-     1 Mainly clear       865     4,100     29.63   3.89   16.5  17.8%
-     2 Partly cloudy      633     4,097     29.46   3.87   16.4  17.7%
-     3 Overcast          3209     4,064     29.47   3.92   16.4  17.8%
-    51 Light drizzle      595     4,575     29.59   3.77   17.1  18.2%
-    53 Drizzle            187     4,434     29.42   3.78   16.9  18.1%
-    55 Dense drizzle       63     4,503     29.22   3.68   16.8  18.4%
-    61 Light rain         120     4,524     29.55   3.82   17.0  18.3%
-    63 Rain                96     3,846     29.94   4.12   17.5  17.8%
-    65 Heavy rain          13     4,861     29.65   4.09   18.1  17.9%
-    71 Light snow          62     3,905     28.31   3.83   15.7  17.9%
-    73 Snow                58     3,081     26.72   3.54   14.8  18.1%
-    75 Heavy snow          15     3,293     25.75   2.81   14.8  19.3%
+     0 Clear             2843     3,685     29.52   3.48   16.9  18.7%
+     1 Mainly clear       865     4,100     29.63   3.47   17.1  18.8%
+     2 Partly cloudy      633     4,097     29.46   3.41   17.1  18.6%
+     3 Overcast          3209     4,064     29.47   3.43   17.0  18.9%
+    51 Light drizzle      595     4,575     29.59   3.38   17.6  18.9%
+    53 Drizzle            187     4,434     29.42   3.37   17.6  18.8%
+    55 Dense drizzle       63     4,503     29.22   3.30   17.3  19.0%
+    61 Light rain         120     4,524     29.55   3.36   17.4  18.9%
+    63 Rain                96     3,846     29.94   3.39   18.4  18.7%
+    65 Heavy rain          13     4,861     29.65   3.12   17.8  19.8%
+    71 Light snow          62     3,905     28.31   3.18   15.9  19.7%
+    73 Snow                58     3,081     26.72   3.10   15.1  18.8%
+    75 Heavy snow          15     3,293     25.75   2.75   15.2  19.6%
 
 WET vs DRY, CONTROLLED INSIDE (month x hour-of-day) CELLS
 ---------------------------------------------------------
@@ -108,12 +108,12 @@ snow hours n=135  mean snowfall 0.36 cm
 
 WEATHER AND ECONOMICS (same controlled comparison, per-trip metrics)
 --------------------------------------------------------------------
-  fare             wet/dry = 1.0043  (+0.4%)   raw = 0.9882
-  amount           wet/dry = 1.0036  (+0.4%)   raw = 0.9936
-  trip distance    wet/dry = 0.9969  (-0.3%)   raw = 0.9575
-  tip              wet/dry = 1.0144  (+1.4%)   raw = 1.0157
-  duration min     wet/dry = 1.0106  (+1.1%)   raw = 1.0291
-  passengers       wet/dry = 0.9988  (-0.1%)   raw = 1.0007
+  fare             wet/dry = 0.9980  (-0.2%)   raw = 0.9947
+  amount           wet/dry = 0.9957  (-0.4%)   raw = 0.9955
+  trip distance    wet/dry = 0.9889  (-1.1%)   raw = 0.9687
+  tip              wet/dry = 0.9997  (-0.0%)   raw = 1.0033
+  duration min     wet/dry = 1.0070  (+0.7%)   raw = 1.0252
+  passengers       wet/dry = 0.9993  (-0.1%)   raw = 0.9991
 
 ZONE REDISTRIBUTION UNDER WET HOURS
 -----------------------------------
@@ -227,13 +227,13 @@ TEMPERATURE RESPONSE (residualised on month x hour)
 
 ECONOMICS
 ---------
-fare per trip        $20.84
+fare per trip        $19.72
 revenue per trip     $29.49
 trips per $1 revenue 0.0339
-mean trip distance   3.93 mi
-mean duration        16.4 min
+mean trip distance   3.44 mi
+mean duration        17.1 min
 mean passengers      1.30
-tip per trip         $3.69  (17.7% of fare)
+tip per trip         $3.71  (18.8% of fare)
 
 revenue per hour by month:
    1  $   104,260
@@ -315,7 +315,7 @@ long-haul zones (mean trip distance > 8 mi, >=20k trips):
   zone  138  trips  1,205,563  $  70.47/trip  dist  9.66  dur  31.2
   zone   70  trips    119,147  $  67.86/trip  dist  9.56  dur  30.7
   zone   76  trips     21,948  $  36.20/trip  dist  8.13  dur  48.0
-  citywide for comparison: $29.49/trip, dist 3.93 mi
+  citywide for comparison: $29.49/trip, dist 3.44 mi
 
 OTHER WEATHER AXES (controlled)
 -------------------------------
@@ -338,4 +338,4 @@ HEAVY RAIN, CONTROLLED (does the story change above a threshold?)
   >=  2.5 mm/h  hours= 113  controlled=0.9705 (-3.0%)  naive=1.0075 (+0.8%)  cells=18  cells below 1: 11/18
   >=  4.0 mm/h  hours=  53  controlled=0.9621 (-3.8%)  naive=1.0830 (+8.3%)  cells=4  cells below 1: 3/4
 
-wrote src/data/findings.json and public/data/findings.json
+wrote src/data/findings.json

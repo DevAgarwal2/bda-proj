@@ -20,29 +20,43 @@ inspectable, so every headline number can be traced back to a stated aggregation
 
 ## Architecture
 
-The pipeline runs in four stages — **Hadoop** for ingestion, **PySpark** for the
-analysis, **MongoDB** for serving the data, and **Astro** for the dashboard.
+The pipeline runs in four stages — **ingestion**, **analysis**, **serving** and
+**presentation**. The first two ship as **two interchangeable implementations**:
+
+- a **fast local path** (pandas/numpy) that needs nothing but Python, and
+- a **distributed path** (**HDFS + Hadoop Streaming MapReduce + PySpark**) that runs
+  the same two stages on a single-node cluster.
+
+Both write the same `src/data/*.json`, so they feed the same MongoDB and the same
+dashboard. `npm run data:verify` proves the distributed build reproduces the local
+one — this is one result computed twice, not two products.
 
 ```mermaid
 flowchart LR
-    A["NYC TLC yellow-taxi\nmonthly trip files"] -->|land raw| H
-    B["Open-Meteo hourly\nweather (API)"] -->|land raw| H
-    subgraph H["HDFS"]
-        RAW[("raw /taxi\nraw /weather")]
-    end
-    H -->|MapReduce parse +\nnormalise| F["(hour × pickup zone)\nfact table"]
-    F -->|PySpark DataFrame\naggregations| E["nyc_taxi_weather_hourly.csv\n976,425 rows × 26 cols"]
-    E -->|loader| M[("MongoDB\nnyc_taxi")]
-    M -->|aggregation pipelines\nat request time| D["Astro SSR dashboard\n+ JSON API"]
-    M -->|rollups + 2dsphere geo| D
+    S["nyc_taxi_weather_hourly.csv\n976,425 rows · 26 cols"] --> P["pandas\nnpm run data"]
+    S -->|HDFS put| RAW[("/nyc_taxi/raw")]
+    RAW -->|Hadoop Streaming\nMapReduce| FACT[("/nyc_taxi/fact")]
+    FACT -->|PySpark DataFrame\naggregations| SPK["build/distributed\nspark-data/*.json"]
+    P --> D["src/data/*.json"]
+    SPK -->|npm run data:verify| D
+    D -->|loader| M[("MongoDB\nnyc_taxi")]
+    M -->|aggregation pipelines\nat request time| A["Astro SSR dashboard\n+ JSON API"]
+    M -->|rollups + 2dsphere geo| A
 ```
 
-| Stage | Technology | Role |
-|---|---|---|
-| Ingestion | **Hadoop (HDFS + MapReduce)** | Lands the raw taxi and weather files and produces the normalised `(hour × pickup zone)` fact table. |
-| Analysis | **PySpark** | DataFrame aggregations: per-zone means, trip/dropoff counts, revenue, weather bucketing and the time-controlled comparisons. |
-| Serving | **MongoDB** | Stores the denormalised extract plus pre-computed rollups, geo shapes (2dsphere) and findings. |
-| Presentation | **Astro** (SSR) + TypeScript + hand-written SVG | Server-renders the pages and answers JSON API queries against MongoDB at request time. |
+| Stage | Fast local path | Distributed path | Role |
+|---|---|---|---|
+| Ingestion | `scripts/aggregate.py` reads the CSV from disk | `scripts/distributed/ingest.sh` lands the extract in HDFS; `fact_mapper.py` + `fact_reducer.py` normalise it with a Hadoop Streaming MapReduce job into `/nyc_taxi/fact` | Produce the normalised `(hour × pickup zone)` fact table. |
+| Analysis | pandas/numpy in `aggregate.py`, then `analyse.py` | `scripts/distributed/spark_aggregate.py` runs the same aggregations in PySpark over the HDFS fact table; `verify.py` proves its output equals the pandas cubes, so `analyse.py`'s findings are identical by construction | Trip- and revenue-weighted per-zone profiles, the joint cubes, weather bucketing and the time-controlled comparisons. |
+| Serving | **MongoDB** | **MongoDB** | Stores the denormalised extract plus pre-computed rollups, geo shapes (2dsphere) and findings. |
+| Presentation | **Astro** (SSR) + TypeScript + hand-written SVG | **Astro** | Server-renders the pages and answers JSON API queries against MongoDB at request time. |
+
+> **Scope of the MapReduce stage.** The repository ships the already-joined
+> `(hour × zone)` extract, not the raw monthly TLC trip files, so the MapReduce job
+> operates on the landed extract: it re-keys every record by `(hour, zone)`, validates
+> it, and performs a trip-weighted merge for any repeated key. Reproducing the
+> upstream taxi × weather join would additionally need the raw TLC monthly archives
+> and the cached Open-Meteo responses.
 
 ### Streams in the graph
 
@@ -126,6 +140,7 @@ shape with different bounds.
 | Cab × Weather | `/interaction` | The controlled rain / snow / temperature effect. |
 | Zones & map | `/zones` | Choropleth + ranking table, drill into any zone. |
 | Origin & destination | `/flow` | Origin density, destination density and net flow per zone. |
+| Forecast | `/forecast` | Out-of-sample demand forecast for 1–7 Jan 2026, with error. |
 | Method | `/method` | Methodology and fidelity notes for every figure. |
 
 **Key findings** (all controlled inside `(month × hour-of-day)` cells; the naive
@@ -138,8 +153,37 @@ figure is shown for contrast):
 | 3 | Long-haul zones (mean dist > 8 mi) | **9.1 % of trips, 23.8 % of revenue** | — |
 | 4 | Peak-to-trough demand | **95×** (9,746 vs 103 trips/h) | — |
 
-Also worth noting: tip rate is **17.7 %** of fare and the citywide average
+Also worth noting: tip rate is **18.8 %** of fare and the citywide average
 revenue per trip is **$29.49**.
+
+---
+
+## Forecasting
+
+The `/forecast` surface adds a genuinely predictive stage on top of the
+descriptive analysis.
+
+- **Model:** ridge regression on `log1p(trips per hour)`, fitted on calendar
+  features (cyclical hour / weekday / day-of-year, weekend), weather variables,
+  and three lag terms (same hour yesterday, same hour last week, trailing 24-hour
+  mean).
+- **Split:** strictly temporal — train on 1 Jan – 5 Nov 2025, test on the
+  **56 held-out days** (6 Nov – 31 Dec).
+- **Baseline:** seasonal-naive (same hour, same weekday, previous week).
+
+| Metric | Model | Baseline |
+|---|---|---|
+| MAE (trips/h) | **601** | 681 |
+| RMSE | **949** | 1,162 |
+| MAPE | **23.8 %** | 28.7 % |
+| R² | **0.851** | 0.776 |
+
+The model beats the seasonal-naive rule by **+11.7 % MAE** on data it never saw,
+then forecasts **1–7 January 2026**. Future weather is unknown, so it is held at
+the last 30-day mean — a stated assumption, not a hidden one. The forecast is
+citywide volume only; it does not predict revenue or per-zone demand.
+
+Reproduce with `python3 scripts/forecast.py` (also run by `npm run data`).
 
 ---
 
@@ -153,7 +197,19 @@ revenue per trip is **$29.49**.
 │   ├── analyse.py                # analysis stage     → findings
 │   ├── load_mongo.py             # MongoDB loader     → trips/hourly/zones/rollups
 │   ├── findings.txt              # human-readable analysis output
-│   └── shoot.mjs                 # Playwright screenshot pass
+│   ├── shoot.mjs                 # Playwright screenshot pass
+│   └── distributed/              # the HDFS + MapReduce + PySpark path
+│       ├── env.sh                #   JAVA_HOME / HADOOP_HOME / SPARK_HOME / HDFS
+│       ├── hdfs-up.sh            #   start the NameNode + DataNode
+│       ├── hdfs-down.sh          #   stop them
+│       ├── ingest.sh             #   put the extract at /nyc_taxi/raw
+│       ├── run-fact-job.sh       #   Hadoop Streaming job → /nyc_taxi/fact
+│       ├── fact_mapper.py        #   mapper: re-key by (hour, zone)
+│       ├── fact_reducer.py       #   reducer: trip-weighted merge
+│       ├── spark_aggregate.py    #   PySpark → same JSON as aggregate.py
+│       ├── run-spark.sh          #   spark-submit wrapper
+│       ├── run-all.sh            #   ingest → MapReduce → Spark → verify
+│       └── verify.py             #   prove the two builds agree
 ├── src/
 │   ├── pages/                    # Astro surfaces + JSON API routes
 │   │   ├── api/[...path].ts      #   one dispatcher for every aggregation
@@ -177,7 +233,13 @@ revenue per trip is **$29.49**.
 
 ## Getting started
 
-**Prerequisites:** Node 20+, Python 3.11+, MongoDB (`mongod`) running locally.
+**Prerequisites (fast local path):** Node 20+, Python 3.11+, MongoDB (`mongod`)
+running locally.
+
+**Prerequisites (distributed path, optional):** JDK 11, a Hadoop 3.3.x install
+(`HADOOP_HOME`) and an Apache Spark 3.5.x tarball (`SPARK_HOME`). The helpers in
+`scripts/distributed/` set `JAVA_HOME`, `PYSPARK_PYTHON` and the cluster paths for
+you; nothing else needs configuring.
 
 ```bash
 # 1. install dashboard dependencies
@@ -208,6 +270,29 @@ npm run db:load     # .venv/bin/python scripts/load_mongo.py
 npm run dev         # http://localhost:4321
 ```
 
+### Distributed path (HDFS + MapReduce + PySpark)
+
+Runs the first two stages on a local single-node cluster and checks the result
+against the pandas build. `scripts/distributed/env.sh` resolves `HADOOP_HOME` and
+`SPARK_HOME` (defaults: `~/hadoop-env/hadoop-3.3.6` and
+`~/spark-env/spark-3.5.3-bin-hadoop3`); override them in the environment if yours
+live elsewhere.
+
+```bash
+npm run hdfs:up          # start the NameNode + DataNode, wait for safe mode off
+npm run hdfs:ingest      # hdfs -put the extract at /nyc_taxi/raw
+npm run mr:fact          # Hadoop Streaming MapReduce → /nyc_taxi/fact
+npm run data:spark       # PySpark aggregation → build/distributed/spark-data
+npm run data:verify      # compare that output against src/data (must PASS)
+```
+
+`npm run data:distributed` chains all five. To promote the verified Spark output
+over the committed snapshots:
+
+```bash
+cp build/distributed/spark-data/*.json src/data/
+```
+
 **Build & run for production (SSR):**
 
 ```bash
@@ -219,7 +304,10 @@ npm start           # node ./dist/server/entry.mjs
 on a single machine, so the extract and every served number can be regenerated
 without the cluster. The analysis is deterministic: `scripts/analyse.py` writes
 both `src/data/findings.json` and the human-readable `scripts/findings.txt`, and
-`load_mongo.py` records the row counts, index list and load time in `meta`.
+`load_mongo.py` records the row counts, index list and load time in `meta`. The
+distributed path (HDFS + MapReduce + PySpark) reproduces the same `src/data`
+payloads from the same extract, and `npm run data:verify` checks that field by
+field — integer counts exactly, rounded values within rounding tolerance.
 
 ---
 
