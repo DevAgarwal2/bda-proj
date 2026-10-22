@@ -180,7 +180,33 @@ function profile(f: Filter, field: string) {
 export const byHour = (f: Filter) => profile(f, 'cal.hod');
 export const byDow = (f: Filter) => profile(f, 'cal.dow');
 export const byMonth = (f: Filter) => profile(f, 'cal.mon');
-export const byCode = (f: Filter) => profile(f, 'weather.code');
+
+/** WMO weather codes present in the extract, in plain English. */
+const CODE_LABEL: Record<number, string> = {
+  0: 'Clear', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+  51: 'Light drizzle', 53: 'Drizzle', 55: 'Dense drizzle',
+  61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
+  71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
+};
+const CODE_KIND: Record<number, 'dry' | 'rain' | 'snow'> = {
+  0: 'dry', 1: 'dry', 2: 'dry', 3: 'dry',
+  51: 'rain', 53: 'rain', 55: 'rain', 61: 'rain', 63: 'rain', 65: 'rain',
+  71: 'snow', 73: 'snow', 75: 'snow',
+};
+
+export async function byCode(f: Filter) {
+  const rows = await profile(f, 'weather.code');
+  return rows.map((r) => {
+    const code = Number(r.key);
+    return {
+      ...r,
+      code,
+      label: CODE_LABEL[code] ?? `Code ${code}`,
+      kind: CODE_KIND[code] ?? 'dry',
+    };
+  });
+}
+
 export const byKind = (f: Filter) => profile(f, 'weather.kind');
 
 /** Hour x weekday matrix — mean citywide trips per hour in each cell. */

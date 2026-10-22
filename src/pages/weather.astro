@@ -3,9 +3,9 @@ import Shell from '../layouts/Shell.astro';
 ---
 
 <Shell
-  kicker="Weather insights"
-  title="What the sky actually did"
-  lede="Before asking what weather does to taxi demand, it is worth knowing what weather New York actually had in 2025. Thirteen WMO conditions appear in this extract and no others; the distributions below are the raw weather side of the join, straight out of the hourly collection."
+  kicker="Weather"
+  title="What the weather was like in 2025"
+  lede="New York had 8,759 recorded hours in 2025. This page shows the weather itself — which skies were common, how much it rained, and how hot or cold it got. No taxi numbers yet; the next pages connect this weather to demand."
 >
   <div class="grid">
     <div class="panel panel--wide">
@@ -15,14 +15,13 @@ import Shell from '../layouts/Shell.astro';
     <div class="panel panel--two3">
       <div class="panel__head">
         <span class="fig-label">Figure 1</span>
-        <h2 class="panel__h">How often each sky occurred</h2>
+        <h2 class="panel__h">How often each weather type happened</h2>
       </div>
       <div class="panel__body"><div id="codes" class="chart" data-state="loading"></div><div id="codes-lg"></div></div>
       <p class="panel__note">
-        Hours per condition, with the mean trips per hour overlaid. Overcast is the single most common
-        sky of the year by a wide margin, and it is the fair comparison for a snow hour — which is why
-        the snow figures elsewhere on this dashboard are quoted against overcast rather than against
-        "clear".
+        Hours in the year for each weather type, longest bar first. <b>Overcast was the
+        most common sky</b> — 3,209 hours, more than a third of the year. That is why
+        snow is compared with overcast elsewhere, not with "clear".
       </p>
     </div>
 
@@ -32,7 +31,7 @@ import Shell from '../layouts/Shell.astro';
         <h2 class="panel__h">Dry, rain or snow</h2>
       </div>
       <div class="panel__body"><div id="kinds" class="chart" data-state="loading"></div></div>
-      <p class="panel__note">Every hour of 2025 classified. Rain and drizzle together are the second-largest group; snow is rare.</p>
+      <p class="panel__note">Every hour of 2025 falls into one of three buckets. Rain or drizzle is the middle group; snow is rare.</p>
     </div>
 
     <div class="panel panel--half">
@@ -80,33 +79,32 @@ import Shell from '../layouts/Shell.astro';
     <div class="panel panel--wide">
       <div class="panel__head">
         <span class="fig-label">Figure 8</span>
-        <h2 class="panel__h">The weather calendar: what each month actually delivered</h2>
+        <h2 class="panel__h">Month by month</h2>
       </div>
       <div class="panel__body"><div id="season" class="chart" data-state="loading"></div><div id="season-lg"></div></div>
       <p class="panel__note">
-        Bars are the share of the month's hours that were dry, wet or snowing, drawn against the
-        month's mean temperature. It makes the winter obvious: snow only appears in the cold months,
-        which is exactly the confound you have to remove before you can attribute anything to snow.
+        Each bar is one month, split into dry, wet and snowing hours. The line is the
+        month's average temperature. Snow only appears in the cold months — which is
+        why the rest of the dashboard controls for season before blaming snow for anything.
       </p>
     </div>
 
     <div class="panel panel--wide">
       <div class="panel__head">
         <span class="fig-label">Table 1</span>
-        <h2 class="panel__h">Every condition, and what it does to a trip</h2>
+        <h2 class="panel__h">Every weather type, and what a trip looked like</h2>
       </div>
       <div class="panel__body"><div id="econ" class="chart" data-state="loading"></div></div>
       <p class="panel__note">
-        Fill colour marks the condition family — ink for dry skies, rain-blue for rain and drizzle,
-        frost for snow. The trips-per-hour column is the honest one: it is where the weather is
-        visible. The money columns barely move.
+        Every weather type, how many hours it lasted, and what a trip looked like during it.
+        The <b>trips per hour</b> column moves; the money columns barely do.
       </p>
     </div>
   </div>
 
   <script>
     import { api, boot, panelState, register } from '../scripts/app';
-    import { barChart, histogram, int, legend, money, one, table } from '../scripts/charts';
+    import { barChart, barsH, histogram, int, legend, money, one, table } from '../scripts/charts';
 
     const host = (id: string) => document.getElementById(id)!;
 
@@ -133,8 +131,8 @@ import Shell from '../layouts/Shell.astro';
         { label: 'Snowing hours', value: int(snow), note: `${((snow / n) * 100).toFixed(2)}% — the rarest condition` },
         { label: 'Temperature', value: `${Math.round(Math.min(...temps))} to ${Math.round(Math.max(...temps))} °C`, note: `mean ${one(temps.reduce((a, b) => a + b, 0) / n)} °C` },
         { label: 'Precipitation', value: one(prcpTotal) + ' mm', note: 'summed over the year' },
-        { label: 'Overcast hours', value: int(overcast), note: 'the modal sky of 2025' },
-        { label: 'Conditions seen', value: String(codes.length), note: 'no thunder, no fog in this extract' },
+        { label: 'Overcast hours', value: int(overcast), note: 'the most common sky' },
+        { label: 'Weather types', value: String(codes.length), note: 'all types present in the data' },
       ];
       const dl = document.createElement('dl');
       dl.className = 'kpis';
@@ -152,16 +150,21 @@ import Shell from '../layouts/Shell.astro';
       host('kpis').append(dl);
       panelState(host('kpis'), 'ready');
 
-      // ---- hours per condition, with trips/hour as the second series
+      // ---- hours per condition: horizontal bars, easiest to read
       const order = [...codes].sort((a, b) => b.hours - a.hours);
-      barChart(host('codes'), order.map((c) => ({
+      barsH(host('codes'), order.map((c) => ({
         key: c.code, label: c.label, value: c.hours,
-        colour: c.kind === 'snow' ? 'var(--frost)' : c.kind === 'rain' ? 'var(--rain)' : 'var(--ink)',
-        value2: c.tripsPerHour,
-      })), { height: 190, yLabel: 'hours', y2Label: 'trips/h', fmt: (v) => int(v), fmt2: (v) => int(v) });
+      })), {
+        rowH: 20, labelW: 142, fmt: (v) => int(v),
+        colour: (p) => {
+          const c = order.find((x) => x.code === p.key);
+          return c?.kind === 'snow' ? 'var(--frost)' : c?.kind === 'rain' ? 'var(--rain)' : 'var(--ink)';
+        },
+      });
       legend(host('codes-lg'), [
-        { swatch: 'bar', colour: 'var(--ink)', label: 'hours in the year' },
-        { swatch: 'line', colour: 'var(--rev)', label: 'mean trips per hour', note: 'right axis' },
+        { swatch: 'bar', colour: 'var(--ink)', label: 'dry sky' },
+        { swatch: 'bar', colour: 'var(--rain)', label: 'rain or drizzle' },
+        { swatch: 'bar', colour: 'var(--frost)', label: 'snow' },
       ]);
       panelState(host('codes'), 'ready');
 
@@ -174,7 +177,7 @@ import Shell from '../layouts/Shell.astro';
 
       // ---- distributions
       histogram(host('temphist'), vars.map((v) => v.temp), { bins: 26, height: 150, lo: -18, hi: 41, label: '°C' });
-      host('tempnote').textContent = `Distribution of hourly temperature across the ${int(n)} recorded hours. Most of the year sits between −5 and 30 °C; the extremes are what a small number of hours look like.`;
+      host('tempnote').textContent = `How many hours were spent in each temperature band. Most of the year sits between −5 °C and 30 °C; the very hot and very cold hours are rare.`;
       panelState(host('temphist'), 'ready');
 
       const prcps = vars.map((v) => v.precip).filter((p) => p > 0);
@@ -184,7 +187,7 @@ import Shell from '../layouts/Shell.astro';
       const light = vars.filter((v) => v.precip > 0 && v.precip < 1).length;
       const mod = vars.filter((v) => v.precip >= 1 && v.precip < 4).length;
       const heavy = vars.filter((v) => v.precip >= 4).length;
-      host('prcpnote').innerHTML = `Wet hours split <b>${int(light)}</b> light (&lt;1 mm), <b>${int(mod)}</b> moderate (1–4 mm) and <b>${int(heavy)}</b> heavy (≥4 mm). The distribution is heavily skewed — most wet hours are barely wet, which is why a naive "rain vs dry" average washes out.`;
+      host('prcpnote').innerHTML = `Wet hours split <b>${int(light)}</b> light (&lt;1 mm), <b>${int(mod)}</b> moderate (1–4 mm) and <b>${int(heavy)}</b> heavy (≥4 mm). Most wet hours are barely wet, which is why a plain "rain vs dry" average washes out.`;
       panelState(host('prcphist'), 'ready');
 
       histogram(host('windhist'), vars.map((v) => v.wind), { bins: 20, height: 150, label: 'km/h' });
